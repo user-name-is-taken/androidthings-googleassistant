@@ -108,6 +108,7 @@ public class AssistantActivity extends Activity implements Button.OnButtonEventL
     // gRPC client and stream observers.
     private EmbeddedAssistantGrpc.EmbeddedAssistantStub mAssistantService;
     private StreamObserver<AssistRequest> mAssistantRequestObserver;
+
     private StreamObserver<AssistResponse> mAssistantResponseObserver =
             new StreamObserver<AssistResponse>() {
         @Override
@@ -125,6 +126,12 @@ public class AssistantActivity extends Activity implements Button.OnButtonEventL
                 }
             }
             if (value.getDialogStateOut() != null) {
+                int volume = value.getDialogStateOut().getVolumePercentage();
+                if(volume > 0){
+                    mVolumePercentage = volume;
+                    Log.i(TAG, "assistant volume changed: " + mVolumePercentage);
+                    mAudioTrack.setVolume(AudioTrack.getMaxVolume() * mVolumePercentage / 100.0f);
+                }
                 mConversationState = value.getDialogStateOut().getConversationState();
             }
             if (value.getAudioOut() != null) {
@@ -209,23 +216,31 @@ public class AssistantActivity extends Activity implements Button.OnButtonEventL
             Log.i(TAG, "starting assistant request");
             mAudioRecord.startRecording();
             mAssistantRequestObserver = mAssistantService.assist(mAssistantResponseObserver);
+
             AssistConfig.Builder converseConfigBuilder = AssistConfig.newBuilder()
                     .setAudioInConfig(ASSISTANT_AUDIO_REQUEST_CONFIG)
-                    .setAudioOutConfig(ASSISTANT_AUDIO_RESPONSE_CONFIG)
+                    .setAudioOutConfig(AudioOutConfig.newBuilder()
+                            .setEncoding(ENCODING_OUTPUT)
+                            .setSampleRateHertz(SAMPLE_RATE)
+                            .setVolumePercentage(mVolumePercentage)
+                            .build())
                     .setDeviceConfig(DeviceConfig.newBuilder()
                             .setDeviceModelId(MyDevice.MODEL_ID)
                             .setDeviceId(MyDevice.INSTANCE_ID)
                             .build());
+
             DialogStateIn.Builder dialogStateInBuilder = DialogStateIn.newBuilder()
                     .setLanguageCode(MyDevice.LANGUAGE_CODE);
             if (mConversationState != null) {
                 dialogStateInBuilder.setConversationState(mConversationState);
             }
             converseConfigBuilder.setDialogStateIn(dialogStateInBuilder.build());
+
             mAssistantRequestObserver.onNext(
                     AssistRequest.newBuilder()
                             .setConfig(converseConfigBuilder.build())
                             .build());
+
             mAssistantHandler.post(mStreamAssistantRequest);
         }
     };
@@ -267,6 +282,7 @@ public class AssistantActivity extends Activity implements Button.OnButtonEventL
     // List & adapter to store and display the history of Assistant Requests.
     private ArrayList<String> mAssistantRequests = new ArrayList<>();
     private ArrayAdapter<String> mAssistantRequestsAdapter;
+    private static int mVolumePercentage = 100;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
