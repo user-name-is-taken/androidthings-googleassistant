@@ -20,4 +20,5 @@ public class MyDevice {
     public static final String MODEL_ID = "autocar-118b2-brain-ybjcmp";
     public static final String INSTANCE_ID = "instance_1";
     public static final String LANGUAGE_CODE = "en-US";
+    //project id: autocar-118b2
 }

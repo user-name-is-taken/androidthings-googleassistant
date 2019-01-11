@@ -33,7 +33,9 @@ import com.google.assistant.embedded.v1alpha2.EmbeddedAssistantGrpc;
 import com.google.assistant.embedded.v1alpha2.SpeechRecognitionResult;
 import com.google.protobuf.ByteString;
 
+import org.json.JSONArray;
 import org.json.JSONException;
+import org.json.JSONObject;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -130,6 +132,37 @@ public class MyAssistant implements Button.OnButtonEventListener {
                         Log.d(TAG, "converse audio size: " + audioData.remaining());
                         mAssistantResponses.add(audioData);
                     }
+                    if (value.getDeviceAction() != null &&
+                            !value.getDeviceAction().getDeviceRequestJson().isEmpty()) {
+                        // Iterate through JSON object
+                        try {
+                            JSONObject deviceAction =
+                                    new JSONObject(value.getDeviceAction().getDeviceRequestJson());
+                            JSONArray inputs = deviceAction.getJSONArray("inputs");
+                            for (int i = 0; i < inputs.length(); i++) {
+                                if (inputs.getJSONObject(i).getString("intent")
+                                        .equals("action.devices.EXECUTE")) {
+                                    JSONArray commands = inputs.getJSONObject(i)
+                                            .getJSONObject("payload")
+                                            .getJSONArray("commands");
+                                    for (int j = 0; j < commands.length(); j++) {
+                                        JSONArray execution = commands.getJSONObject(j)
+                                                .getJSONArray("execution");
+                                        for (int k = 0; k < execution.length(); k++) {
+                                            String command = execution.getJSONObject(k)
+                                                    .getString("command");
+                                            JSONObject params = execution.getJSONObject(k)
+                                                    .optJSONObject("params");
+                                            handleDeviceAction(command, params);
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (JSONException | IOException e) {
+                            e.printStackTrace();
+                        }
+                    }
+
                 }
 
                 @Override
@@ -181,6 +214,14 @@ public class MyAssistant implements Button.OnButtonEventListener {
                     }
                 }
             };
+
+    public void handleDeviceAction(String command, JSONObject params)
+            throws JSONException, IOException {
+        if (command.equals("action.devices.commands.OnOff")) {
+            //mLed.setValue(params.getBoolean("on"));
+            Log.i(TAG, "Turning device on!!!!");
+        }
+    }
 
     // Audio playback and recording objects.
     private AudioTrack mAudioTrack;
@@ -275,7 +316,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
 
     private Handler mMainHandler;
 
-    public MyAssistant(Context context){
+    public MyAssistant(Activity context){
         this.context = context;
         mAssistantRequestsAdapter =
                 new ArrayAdapter<String>(context, android.R.layout.simple_list_item_1,
