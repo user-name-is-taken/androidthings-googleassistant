@@ -17,38 +17,9 @@
 package com.example.androidthings.assistant;
 
 import android.app.Activity;
-import android.content.Context;
-import android.media.AudioDeviceInfo;
-import android.media.AudioFormat;
-import android.media.AudioManager;
-import android.media.AudioRecord;
-import android.media.AudioTrack;
-import android.media.MediaRecorder.AudioSource;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.HandlerThread;
 import android.util.Log;
-import android.widget.ArrayAdapter;
-import android.widget.ListView;
-import com.example.androidthings.assistant.shared.BoardDefaults;
-import com.example.androidthings.assistant.shared.Credentials;
-import com.example.androidthings.assistant.shared.MyDevice;
-import com.google.android.things.contrib.driver.button.Button;
-import com.google.android.things.contrib.driver.voicehat.Max98357A;
-import com.google.android.things.contrib.driver.voicehat.VoiceHat;
-import com.google.android.things.pio.Gpio;
-import com.google.android.things.pio.PeripheralManager;
-import com.google.assistant.embedded.v1alpha2.EmbeddedAssistantGrpc;
-import com.google.assistant.embedded.v1alpha2.SpeechRecognitionResult;
-import com.google.protobuf.ByteString;
-import io.grpc.ManagedChannel;
-import io.grpc.ManagedChannelBuilder;
-import io.grpc.auth.MoreCallCredentials;
-import io.grpc.stub.StreamObserver;
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import org.json.JSONException;
+
 
 import static android.content.ContentValues.TAG;
 
@@ -63,8 +34,6 @@ public class AssistantActivity extends Activity {
 
         setContentView(R.layout.activity_main);
         myAssistant = new MyAssistant(this);
-
-
     }
 
 
