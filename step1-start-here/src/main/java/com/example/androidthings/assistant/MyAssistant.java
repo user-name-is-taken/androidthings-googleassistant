@@ -193,6 +193,8 @@ public class MyAssistant implements Button.OnButtonEventListener {
                         Log.d(TAG, "Playing a bit of audio");
                         mAudioTrack.write(buf, buf.remaining(),
                                 AudioTrack.WRITE_BLOCKING);
+                        //todo: according to this https://developer.android.com/reference/android/media/AudioTrack#play()
+                        //write is where audio to be played is determined.
                     }
                     mAssistantResponses.clear();
                     mAudioTrack.stop();
@@ -241,6 +243,8 @@ public class MyAssistant implements Button.OnButtonEventListener {
     private HandlerThread mAssistantThread;
     private Handler mAssistantHandler;
     private ArrayList<ByteBuffer> mAssistantResponses = new ArrayList<>();
+
+
     private Runnable mStartAssistantRequest = new Runnable() {
         @Override
         public void run() {
@@ -305,7 +309,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
                 mAssistantRequestObserver = null;
             }
             mAudioRecord.stop();
-            mAudioTrack.play();
+            mAudioTrack.play();//todo: is this a better text to speech?
         }
     };
 
