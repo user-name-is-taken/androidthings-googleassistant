@@ -9,6 +9,8 @@ import android.speech.tts.UtteranceProgressListener;
 import android.util.Log;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -42,13 +44,20 @@ public class CustomTTS extends UtteranceProgressListener implements TextToSpeech
 
     private LinkedList<String> textToSpeehQueue;
     private static File myFile;
+    FileInputStream fin;
 
     private Runnable runSynthesizedFile = new Runnable() {
         @Override
         public void run() {
             //todo run the file
             //https://developer.android.com/reference/android/media/AudioTrack
+            byte fileContent[] = new byte[(int) (myFile.length())];
+            try {
+                fin.read(fileContent);
 
+            }catch (IOException e){
+                Log.e(TAG, "IOException running my TTS", e);
+            }
             //creating a byte buffer from a file?
             // http://www.java2s.com/Code/Android/File/LoadsafiletoaByteBuffer.htm
 
@@ -58,6 +67,9 @@ public class CustomTTS extends UtteranceProgressListener implements TextToSpeech
             //AudioTrack.play: https://developer.android.com/reference/android/media/AudioTrack.html#play()
                 //note, play throws an IllegalStateException
 
+            //reading from file: https://examples.javacodegeeks.com/core-java/io/fileinputstream/read-file-in-byte-array-with-fileinputstream/
+
+            //Audio encoding (used in synthesizes: https://cloud.google.com/speech-to-text/docs/encoding
 
 
             textToSpeehQueue.remove();//do this last!
@@ -77,6 +89,11 @@ public class CustomTTS extends UtteranceProgressListener implements TextToSpeech
      */
     public CustomTTS(Context context, Handler speakerHandler){
         mySpeakerHandler = speakerHandler;
+        try {
+            fin = new FileInputStream(myFile);
+        }catch (FileNotFoundException e){
+            Log.e(TAG, "File not found in constructor!!!", e);
+        }
         this.tts = new TextToSpeech(context, this);
         if(myFile == null){
             try {
