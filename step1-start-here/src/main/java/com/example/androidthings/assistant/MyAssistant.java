@@ -51,6 +51,7 @@ import io.grpc.stub.StreamObserver;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.Locale;
 import android.media.AudioAttributes;
@@ -563,13 +564,13 @@ public class MyAssistant implements Button.OnButtonEventListener {
             attributes = audioAttributesBuilder.build();
             this.textToSpeehQueue = new LinkedList<>();
 
-            int minBufferSize = AudioTrack.getMinBufferSize(8000, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT);
+            int minBufferSize = AudioTrack.getMinBufferSize(8000, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_8BIT);
 
             AudioTrack.Builder atBuilder = new AudioTrack.Builder();
             //builder.setAudioAttributes()
             AudioFormat.Builder afBuilder = new AudioFormat.Builder();
 
-            afBuilder.setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+            afBuilder.setEncoding(AudioFormat.ENCODING_PCM_8BIT)
                     .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
                     .setSampleRate(8000);
 
@@ -584,7 +585,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
             //todo: you might need to specify the TTS engine so you can pass the encoding when you synthesize the file
             //https://developer.android.com/reference/android/speech/tts/TextToSpeech#TextToSpeech(android.content.Context,%20android.speech.tts.TextToSpeech.OnInitListener,%20java.lang.String)
 
-            this.tts = new TextToSpeech(context, this, TTS_ENGINE);
+            this.tts = new TextToSpeech(MyAssistant.this.context, this, TTS_ENGINE);
             if(myFile == null){
                 try {
                     myFile = File.createTempFile("tempSoundFile", ".wav");
@@ -625,6 +626,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
          * @see AssistantActivity#onDestroy()
          */
         public void shutdown(){
+            this.tts.stop();
             this.tts.shutdown();
         }
 
@@ -652,14 +654,14 @@ public class MyAssistant implements Button.OnButtonEventListener {
          */
         private void synthesizeNextFile(){
             if(!ttsRunning && !textToSpeehQueue.isEmpty()){
+                ttsRunning = true;
                 Bundle params = new Bundle();
                 //pre lolipop devices: https://stackoverflow.com/questions/34562771/how-to-save-audio-file-from-speech-synthesizer-in-android-android-speech-tts
 
                 params.putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, UTTERANCE_ID);
                 //You were explicitly setting the engine here. You should add that in.
 
-                tts.synthesizeToFile(textToSpeehQueue.peekFirst(),params , myFile,UTTERANCE_ID);
-                ttsRunning = true;
+                tts.synthesizeToFile(textToSpeehQueue.peekFirst(), params, myFile, UTTERANCE_ID);
             }
         }
 
@@ -680,8 +682,10 @@ public class MyAssistant implements Button.OnButtonEventListener {
 
 
                 at.play();
+
                 while((i = dis.read(s, 0, BUFFER_SIZE)) > -1){
                     at.write(s, 0, i);
+                    Log.v(TAG, Arrays.toString(s));
 
                 }
                 at.stop();
