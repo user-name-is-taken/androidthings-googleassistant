@@ -564,15 +564,15 @@ public class MyAssistant implements Button.OnButtonEventListener {
             attributes = audioAttributesBuilder.build();
             this.textToSpeehQueue = new LinkedList<>();
 
-            int minBufferSize = AudioTrack.getMinBufferSize(8000, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_8BIT);
+            int minBufferSize = AudioTrack.getMinBufferSize(22050, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT);
 
             AudioTrack.Builder atBuilder = new AudioTrack.Builder();
             //builder.setAudioAttributes()
             AudioFormat.Builder afBuilder = new AudioFormat.Builder();
 
-            afBuilder.setEncoding(AudioFormat.ENCODING_PCM_8BIT)
+            afBuilder.setEncoding(AudioFormat.ENCODING_PCM_16BIT)
                     .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                    .setSampleRate(8000);
+                    .setSampleRate(22050);
 
             atBuilder.setAudioFormat(afBuilder.build())
                     .setBufferSizeInBytes(minBufferSize)
@@ -580,7 +580,6 @@ public class MyAssistant implements Button.OnButtonEventListener {
 
             at = atBuilder.build();
             at.setPreferredDevice(MyAssistant.this.mAudioOutputDevice);
-            //AudioTrack at = new AudioTrack(AudioManager.STREAM_MUSIC, 8000, AudioFormat.CHANNEL_CONFIGURATION_MONO, AudioFormat.ENCODING_PCM_16BIT, minBufferSize, AudioTrack.MODE_STREAM);
 
             //todo: you might need to specify the TTS engine so you can pass the encoding when you synthesize the file
             //https://developer.android.com/reference/android/speech/tts/TextToSpeech#TextToSpeech(android.content.Context,%20android.speech.tts.TextToSpeech.OnInitListener,%20java.lang.String)
@@ -626,6 +625,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
          * @see AssistantActivity#onDestroy()
          */
         public void shutdown(){
+            this.myFile.delete();//todo: should this be here???
             this.tts.stop();
             this.tts.shutdown();
         }
