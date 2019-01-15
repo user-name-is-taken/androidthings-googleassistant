@@ -2,8 +2,10 @@ package com.example.androidthings.assistant;
 
 import android.content.Context;
 import android.media.AudioAttributes;
+import android.media.AudioDeviceInfo;
+import android.media.MediaPlayer;
+
 import android.os.Bundle;
-import android.os.Handler;
 import android.speech.tts.TextToSpeech;
 import android.speech.tts.UtteranceProgressListener;
 import android.util.Log;
@@ -36,11 +38,15 @@ import static android.content.ContentValues.TAG;
 
 public class CustomTTS extends UtteranceProgressListener implements TextToSpeech.OnInitListener {
 
+    private static final String TTS_ENGINE = "com.svox.pico";
+
     private static final String UTTERANCE_ID =
             "com.example.androidthings.bluetooth.audio.UTTERANCE_ID";
 
     private boolean available = false;
     private boolean ttsRunning = false;
+
+    private MediaPlayer mMediaPlayer;
 
     private LinkedList<String> textToSpeehQueue;
     private static File myFile;
@@ -58,8 +64,13 @@ public class CustomTTS extends UtteranceProgressListener implements TextToSpeech
             }catch (IOException e){
                 Log.e(TAG, "IOException running my TTS", e);
             }
+            //synthesized files are played back with Android.media.MediaPlayer
+            // https://developer.android.com/reference/android/media/MediaPlayer.html#setAudioAttributes(android.media.AudioAttributes)
+
             //creating a byte buffer from a file?
             // http://www.java2s.com/Code/Android/File/LoadsafiletoaByteBuffer.htm
+
+            //note, the AudioTrack object requires you use
 
             //mAudioTrack is defined in AssistantActivity, which this will be a sub class of.
 
@@ -88,13 +99,16 @@ public class CustomTTS extends UtteranceProgressListener implements TextToSpeech
      * @param context
      */
     public CustomTTS(Context context, Handler speakerHandler){
+
+        //todo: you might need to specify the TTS engine so you can pass the encoding when you synthesize the file
+        //https://developer.android.com/reference/android/speech/tts/TextToSpeech#TextToSpeech(android.content.Context,%20android.speech.tts.TextToSpeech.OnInitListener,%20java.lang.String)
         mySpeakerHandler = speakerHandler;
         try {
             fin = new FileInputStream(myFile);
         }catch (FileNotFoundException e){
             Log.e(TAG, "File not found in constructor!!!", e);
         }
-        this.tts = new TextToSpeech(context, this);
+        this.tts = new TextToSpeech(context, this, TTS_ENGINE);
         if(myFile == null){
             try {
                 File.createTempFile("tempSoundFile", ".wav");
@@ -159,7 +173,8 @@ public class CustomTTS extends UtteranceProgressListener implements TextToSpeech
             //pre lolipop devices: https://stackoverflow.com/questions/34562771/how-to-save-audio-file-from-speech-synthesizer-in-android-android-speech-tts
 
             params.putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, UTTERANCE_ID);
-            tts.synthesizeToFile(textToSpeehQueue.pop(),null , myFile,UTTERANCE_ID);
+
+            tts.synthesizeToFile(textToSpeehQueue.pop(),params , myFile,UTTERANCE_ID);
             ttsRunning = true;
         }
     }
@@ -269,11 +284,12 @@ public class CustomTTS extends UtteranceProgressListener implements TextToSpeech
             Log.i(TAG, "Created text to speech engine");
 
             try {
-                AudioAttributes.Builder audioAttributes = new AudioAttributes.Builder().
+                AudioAttributes.Builder audioAttributesBuilder = new AudioAttributes.Builder().
                         setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION_SIGNALLING).
                         setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).
                         setFlags(AudioAttributes.FLAG_AUDIBILITY_ENFORCED);
-                this.tts.setAudioAttributes(audioAttributes.build());
+                AudioAttributes audioAttributes = audioAttributesBuilder.build();
+                this.tts.setAudioAttributes(audioAttributes);
 
                 //Locale.ENGLISH
                 Locale myLoc = new Locale("en", "US");
@@ -285,6 +301,12 @@ public class CustomTTS extends UtteranceProgressListener implements TextToSpeech
                 this.tts.setLanguage(myLoc);
                 this.tts.setPitch(1f);
                 this.tts.setSpeechRate(1f);
+
+                this.mMediaPlayer.setAudioAttributes(audioAttributes);
+
+                this.mMediaPlayer.setPreferredDevice(AssistantActivity.myAssistant.getOutputDevInfo());
+
+
 
                 available = true;
 

@@ -28,7 +28,7 @@ import static android.content.ContentValues.TAG;
 public class AssistantActivity extends Activity {
     private static CustomTTS ttsEngine;
     private static final int TTS_DATA_CHECKING = 0;
-    private MyAssistant myAssistant;
+    public static MyAssistant myAssistant;//make sure this is initialized before initializing CustomTTS
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
