@@ -354,6 +354,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
         if (USE_VOICEHAT_DAC) {
             Log.d(TAG, "enumerating devices");
             //TODO change this back to TYPE_BUS for I2S
+            //https://github.com/androidthings/sample-googleassistant
             mAudioInputDevice = findAudioDevice(AudioManager.GET_DEVICES_INPUTS,
                     AudioDeviceInfo.TYPE_BUS);
             if (mAudioInputDevice == null) {
@@ -550,7 +551,6 @@ public class MyAssistant implements Button.OnButtonEventListener {
 
         private TextToSpeech tts;//all the callbacks are linked to this
 
-        private Handler mySpeakerHandler;
 
         /**
          * initializes the class so it can use text to speech
@@ -578,11 +578,12 @@ public class MyAssistant implements Button.OnButtonEventListener {
                     .setAudioAttributes(attributes);
 
             at = atBuilder.build();
+            at.setPreferredDevice(MyAssistant.this.mAudioOutputDevice);
             //AudioTrack at = new AudioTrack(AudioManager.STREAM_MUSIC, 8000, AudioFormat.CHANNEL_CONFIGURATION_MONO, AudioFormat.ENCODING_PCM_16BIT, minBufferSize, AudioTrack.MODE_STREAM);
 
             //todo: you might need to specify the TTS engine so you can pass the encoding when you synthesize the file
             //https://developer.android.com/reference/android/speech/tts/TextToSpeech#TextToSpeech(android.content.Context,%20android.speech.tts.TextToSpeech.OnInitListener,%20java.lang.String)
-            mySpeakerHandler = MyAssistant.this.mAssistantHandler;
+
             this.tts = new TextToSpeech(context, this, TTS_ENGINE);
             if(myFile == null){
                 try {
@@ -634,6 +635,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
          */
         public void speak(String textToSpeak){
             if(isAvailable()) {
+                Log.d(TAG, "Text to speech: inside speak");
                 this.textToSpeehQueue.add(textToSpeak);
                 synthesizeNextFile();
             }else{
@@ -656,7 +658,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
                 params.putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, UTTERANCE_ID);
                 //You were explicitly setting the engine here. You should add that in.
 
-                tts.synthesizeToFile(textToSpeehQueue.pop(),params , myFile,UTTERANCE_ID);
+                tts.synthesizeToFile(textToSpeehQueue.peekFirst(),params , myFile,UTTERANCE_ID);
                 ttsRunning = true;
             }
         }
@@ -666,6 +668,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
          * https://stackoverflow.com/questions/7372813/android-audiotrack-playing-wav-file-getting-only-white-noise
          */
         private void playWav(){
+            Log.d(TAG, "Playing speech to text wav file");
             String filepath = this.myFile.getAbsolutePath();
 
             int i = 0;
@@ -674,6 +677,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
                 Log.i(TAG, "file path is: " + filepath);
                 FileInputStream fin = new FileInputStream(filepath);
                 DataInputStream dis = new DataInputStream(fin);
+
 
                 at.play();
                 while((i = dis.read(s, 0, BUFFER_SIZE)) > -1){
@@ -720,7 +724,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
         @Override
         public void onDone(String utteranceId) {
             Log.i(TAG, "Text to speech synthesis done");
-            mySpeakerHandler.post(this.runSynthesizedFile);
+            MyAssistant.this.mAssistantHandler.post(this.runSynthesizedFile);
         }
 
         /**
@@ -810,6 +814,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
                     this.tts.setLanguage(myLoc);
                     this.tts.setPitch(1f);
                     this.tts.setSpeechRate(1f);
+                    this.tts.setOnUtteranceProgressListener(this);
 
                     available = true;
 
