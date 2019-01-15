@@ -26,14 +26,14 @@ import android.util.Log;
 import static android.content.ContentValues.TAG;
 
 public class AssistantActivity extends Activity {
-    private static CustomTTS ttsEngine;
     private static final int TTS_DATA_CHECKING = 0;
     public static MyAssistant myAssistant;//make sure this is initialized before initializing CustomTTS
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        if(ttsEngine == null) {
+        setContentView(R.layout.activity_main);
+        if(myAssistant == null) {
             //create an Intent
             Intent checkData = new Intent();
             //set it up to check for tts data
@@ -41,10 +41,6 @@ public class AssistantActivity extends Activity {
             //start it so that it returns the result
             startActivityForResult(checkData, TTS_DATA_CHECKING);
         }
-        Log.i(TAG, "starting assistant demo");
-
-        setContentView(R.layout.activity_main);
-        myAssistant = new MyAssistant(this);
     }
 
     /**
@@ -66,7 +62,8 @@ public class AssistantActivity extends Activity {
                 if (resultCode == TextToSpeech.Engine.CHECK_VOICE_DATA_PASS) {
                     //installed - go ahead and instantiate
                     Log.v(TAG, "TTS is installed...");
-                    ttsEngine = new CustomTTS( this);
+                    myAssistant = new MyAssistant(this);
+                    Log.i(TAG, "starting assistant demo");
                 }
                 else {
                     //no data, prompt to install it
@@ -87,14 +84,13 @@ public class AssistantActivity extends Activity {
 
     @Override
     public void onStop(){
-        ttsEngine.stop();
+        myAssistant.stop();
         super.onStop();
     }
 
     @Override
     protected void onDestroy() {
         myAssistant.kill();
-        ttsEngine.shutdown();
         super.onDestroy();
 
     }

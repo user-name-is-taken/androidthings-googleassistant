@@ -7,7 +7,6 @@ import android.media.AudioFormat;
 import android.media.AudioManager;
 import android.media.AudioRecord;
 import android.media.AudioTrack;
-import android.media.MediaPlayer;
 import android.media.MediaRecorder;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -39,6 +38,7 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.DataInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -51,15 +51,10 @@ import io.grpc.stub.StreamObserver;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.ByteBuffer;
 import java.util.LinkedList;
 import java.util.Locale;
 import android.media.AudioAttributes;
 import android.os.Bundle;
-
-import static android.content.ContentValues.TAG;
 
 public class MyAssistant implements Button.OnButtonEventListener {
     private Context context;
@@ -135,7 +130,9 @@ public class MyAssistant implements Button.OnButtonEventListener {
                         if(volume > 0){
                             mVolumePercentage = volume;
                             Log.i(TAG, "assistant volume changed: " + mVolumePercentage);
-                            mAudioTrack.setVolume(AudioTrack.getMaxVolume() * mVolumePercentage / 100.0f);
+                            float vol = AudioTrack.getMaxVolume() * mVolumePercentage / 100.0f;
+                            mAudioTrack.setVolume(vol);
+                            myTTS.setVolume(vol);
                         }
                         mConversationState = value.getDialogStateOut().getConversationState();
                     }
@@ -336,6 +333,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
     private static int mVolumePercentage = 100;
 
     private Handler mMainHandler;
+    public CustomTTS myTTS;
 
     public MyAssistant(Activity context){
         this.context = context;
@@ -355,6 +353,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
         // Use I2S with the Voice HAT.
         if (USE_VOICEHAT_DAC) {
             Log.d(TAG, "enumerating devices");
+            //TODO change this back to TYPE_BUS for I2S
             mAudioInputDevice = findAudioDevice(AudioManager.GET_DEVICES_INPUTS,
                     AudioDeviceInfo.TYPE_BUS);
             if (mAudioInputDevice == null) {
@@ -421,6 +420,8 @@ public class MyAssistant implements Button.OnButtonEventListener {
         } catch (IOException|JSONException e) {
             Log.e(TAG, "error creating assistant service:", e);
         }
+
+        myTTS = new CustomTTS();
     }
 
     private AudioDeviceInfo findAudioDevice(int deviceFlag, int deviceType) {
@@ -448,6 +449,10 @@ public class MyAssistant implements Button.OnButtonEventListener {
         } else {
             mAssistantHandler.post(mStopAssistantRequest);
         }
+    }
+
+    public void stop(){
+        this.myTTS.stop();
     }
 
     public void kill(){
@@ -485,6 +490,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
             mDac = null;
         }
         mAssistantHandler.post(() -> mAssistantHandler.removeCallbacks(mStreamAssistantRequest));
+        myTTS.shutdown();
         mAssistantThread.quitSafely();
     }
 
@@ -506,22 +512,18 @@ public class MyAssistant implements Button.OnButtonEventListener {
 
         private LinkedList<String> textToSpeehQueue;
         private File myFile;
-        FileInputStream fin;
+        private FileInputStream fin;
+        private static final int BUFFER_SIZE = 512;
+
+        private AudioAttributes attributes;
+        private AudioTrack at;
 
         private Runnable runSynthesizedFile = new Runnable() {
             @Override
             public void run() {
                 //todo run the file
                 //https://developer.android.com/reference/android/media/AudioTrack
-                byte fileContent[] = new byte[(int) (myFile.length())];
-                try {
-                    fin.read(fileContent);
-
-                }catch (IOException e){
-                    Log.e(TAG, "IOException running my TTS", e);
-                }
-                //synthesized files are played back with Android.media.MediaPlayer
-                // https://developer.android.com/reference/android/media/MediaPlayer.html#setAudioAttributes(android.media.AudioAttributes)
+                playWav();
 
                 //creating a byte buffer from a file?
                 // http://www.java2s.com/Code/Android/File/LoadsafiletoaByteBuffer.htm
@@ -554,28 +556,48 @@ public class MyAssistant implements Button.OnButtonEventListener {
          * initializes the class so it can use text to speech
          */
         public CustomTTS(){
+            AudioAttributes.Builder audioAttributesBuilder = new AudioAttributes.Builder().
+                    setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION_SIGNALLING).
+                    setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).
+                    setFlags(AudioAttributes.FLAG_AUDIBILITY_ENFORCED);
+            attributes = audioAttributesBuilder.build();
+            this.textToSpeehQueue = new LinkedList<>();
+
+            int minBufferSize = AudioTrack.getMinBufferSize(8000, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT);
+
+            AudioTrack.Builder atBuilder = new AudioTrack.Builder();
+            //builder.setAudioAttributes()
+            AudioFormat.Builder afBuilder = new AudioFormat.Builder();
+
+            afBuilder.setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                    .setSampleRate(8000);
+
+            atBuilder.setAudioFormat(afBuilder.build())
+                    .setBufferSizeInBytes(minBufferSize)
+                    .setAudioAttributes(attributes);
+
+            at = atBuilder.build();
+            //AudioTrack at = new AudioTrack(AudioManager.STREAM_MUSIC, 8000, AudioFormat.CHANNEL_CONFIGURATION_MONO, AudioFormat.ENCODING_PCM_16BIT, minBufferSize, AudioTrack.MODE_STREAM);
 
             //todo: you might need to specify the TTS engine so you can pass the encoding when you synthesize the file
             //https://developer.android.com/reference/android/speech/tts/TextToSpeech#TextToSpeech(android.content.Context,%20android.speech.tts.TextToSpeech.OnInitListener,%20java.lang.String)
             mySpeakerHandler = MyAssistant.this.mAssistantHandler;
-            try {
-                fin = new FileInputStream(myFile);
-            }catch (FileNotFoundException e){
-                Log.e(TAG, "File not found in constructor!!!", e);
-            }
             this.tts = new TextToSpeech(context, this, TTS_ENGINE);
             if(myFile == null){
                 try {
-                    File.createTempFile("tempSoundFile", ".wav");
+                    myFile = File.createTempFile("tempSoundFile", ".wav");
                     myFile.deleteOnExit();
-                    myFile.canRead();
-                    myFile.canWrite();
+                    myFile.setWritable(true);
+                    myFile.setReadable(true);
+                    fin = new FileInputStream(myFile);
+                }catch (FileNotFoundException e){
+                    Log.e(TAG, "File not found in constructor!!!", e);
                 }catch (IOException e){
                     Log.e(TAG, "Error creating temp file", e);
                 }
             }
-
-        }
+        }//end constructor
 
 
         /**
@@ -585,6 +607,10 @@ public class MyAssistant implements Button.OnButtonEventListener {
          */
         public boolean isAvailable() {
             return available;
+        }
+
+        public void setVolume(float vol){
+            at.setVolume(vol);
         }
 
         /**
@@ -618,7 +644,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
         }
 
         /**
-         * synthesizes the next text in the queue into the temp file.
+         * synthesizes the next text in the queue into the temp file if a file isn't currently being spoken.
          *
          * @see this#textToSpeehQueue
          */
@@ -628,9 +654,43 @@ public class MyAssistant implements Button.OnButtonEventListener {
                 //pre lolipop devices: https://stackoverflow.com/questions/34562771/how-to-save-audio-file-from-speech-synthesizer-in-android-android-speech-tts
 
                 params.putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, UTTERANCE_ID);
+                //You were explicitly setting the engine here. You should add that in.
 
                 tts.synthesizeToFile(textToSpeehQueue.pop(),params , myFile,UTTERANCE_ID);
                 ttsRunning = true;
+            }
+        }
+
+        /**
+         * Code taken from here:
+         * https://stackoverflow.com/questions/7372813/android-audiotrack-playing-wav-file-getting-only-white-noise
+         */
+        private void playWav(){
+            String filepath = this.myFile.getAbsolutePath();
+
+            int i = 0;
+            byte[] s = new byte[BUFFER_SIZE];
+            try {
+                Log.i(TAG, "file path is: " + filepath);
+                FileInputStream fin = new FileInputStream(filepath);
+                DataInputStream dis = new DataInputStream(fin);
+
+                at.play();
+                while((i = dis.read(s, 0, BUFFER_SIZE)) > -1){
+                    at.write(s, 0, i);
+
+                }
+                at.stop();
+                at.release();
+                dis.close();
+                fin.close();
+
+            } catch (FileNotFoundException e) {
+                // TODO
+                e.printStackTrace();
+            } catch (IOException e) {
+                // TODO
+                e.printStackTrace();
             }
         }
 
@@ -661,7 +721,6 @@ public class MyAssistant implements Button.OnButtonEventListener {
         public void onDone(String utteranceId) {
             Log.i(TAG, "Text to speech synthesis done");
             mySpeakerHandler.post(this.runSynthesizedFile);
-
         }
 
         /**
@@ -700,7 +759,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
                 default:
                     Log.e(TAG, "Text to speech: unknown error");
             }
-        }
+        }//end onError
 
         /**
          * according to the docs, this method is deprecated, but the compiler still requires it?
@@ -739,12 +798,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
                 Log.i(TAG, "Created text to speech engine");
 
                 try {
-                    AudioAttributes.Builder audioAttributesBuilder = new AudioAttributes.Builder().
-                            setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION_SIGNALLING).
-                            setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).
-                            setFlags(AudioAttributes.FLAG_AUDIBILITY_ENFORCED);
-                    AudioAttributes audioAttributes = audioAttributesBuilder.build();
-                    this.tts.setAudioAttributes(audioAttributes);
+                    this.tts.setAudioAttributes(attributes);
 
                     //Locale.ENGLISH
                     Locale myLoc = new Locale("en", "US");
@@ -759,20 +813,17 @@ public class MyAssistant implements Button.OnButtonEventListener {
 
                     available = true;
 
-                    //AudioPlaybackConfiguration
-                    speak("Hello world");
                 } catch (Exception e) {
-                    Log.e(TAG, "Error creating CustomTTS", e);
+                    Log.e(TAG, "Error creating Custom TTS", e);
                 }
+                speak("Hello world");
+                //AudioPlaybackConfiguration
             } else {
                 Log.w(TAG, "Could not open TTS Engine (onInit status=" + status + ")");
                 //ttsEngine = null;
             }
-        }
+        }//end onInit
     }
-
-
-
 
 
 
