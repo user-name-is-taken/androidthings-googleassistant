@@ -142,7 +142,6 @@ public class MyAssistant implements Button.OnButtonEventListener {
                                 ByteBuffer.wrap(value.getAudioOut().getAudioData().toByteArray());
                         Log.d(TAG, "converse audio size: " + audioData.remaining());
                         mAssistantResponses.add(audioData);
-                        mAssistantResponseObserver.
                     }
                     if (value.getDeviceAction() != null &&
                             !value.getDeviceAction().getDeviceRequestJson().isEmpty()) {
@@ -763,16 +762,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
         @Override
         public void onDone(String utteranceId) {
             Log.i(TAG, "Text to speech synthesis done");
-            //MyAssistant.this.mAssistantHandler.post(this.runSynthesizedFile);
-            byte[] arr = new byte[50000];
-            try {
-                dis.read(arr, 44, 50000);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-            ByteBuffer audio = ByteBuffer.wrap(arr);
-            Log.d(TAG, "converse audio size: " + audio.remaining());
-            mAssistantResponses.add(audio);
+            MyAssistant.this.mAssistantHandler.post(this.runSynthesizedFile);
         }
 
         /**
