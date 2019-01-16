@@ -142,6 +142,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
                                 ByteBuffer.wrap(value.getAudioOut().getAudioData().toByteArray());
                         Log.d(TAG, "converse audio size: " + audioData.remaining());
                         mAssistantResponses.add(audioData);
+                        mAssistantResponseObserver.
                     }
                     if (value.getDeviceAction() != null &&
                             !value.getDeviceAction().getDeviceRequestJson().isEmpty()) {
@@ -515,6 +516,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
         private LinkedList<String> textToSpeehQueue;
         private File myFile;
         private FileInputStream fin;
+        private DataInputStream dis;
         private static final int BUFFER_SIZE = 512;
 
         private AudioAttributes attributes;
@@ -563,21 +565,39 @@ public class MyAssistant implements Button.OnButtonEventListener {
             byte[] s = new byte[BUFFER_SIZE];
             try {
                 Log.i(TAG, "file path is: " + filepath);
-                FileInputStream fin = new FileInputStream(filepath);
-                DataInputStream dis = new DataInputStream(fin);
+                //FileInputStream fin = new FileInputStream(filepath);
+                //DataInputStream dis = new DataInputStream(fin);
 
 
                 at.play();
                 //mAudioTrack.play();
 
                 while((i = dis.read(s, 0, BUFFER_SIZE)) > -1){
+
                     at.write(s, 0, AudioTrack.WRITE_BLOCKING);
                     //mAudioTrack.write(s, 0, AudioTrack.WRITE_BLOCKING);
                     Log.v(TAG, Arrays.toString(s));
+                    /*
+
+                    */
 
                 }
+                /*
+                try {
+                    while(at.getPlayState() == AudioTrack.PLAYSTATE_PLAYING){
+                        Thread.sleep(100);
+                        Log.i(TAG, "PLAYING audioTrack");
+                    }
+                }catch (InterruptedException e){
+                    Log.e(TAG, "interrupted exception", e);
+                }
+                */
+
+                //at.flush();
                 at.stop();
-                at.release();
+                //mAudioTrack.stop();
+                //at.release();
+                //mAudioTrack.release();
                 dis.close();
                 fin.close();
 
@@ -607,7 +627,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
             int minBufferSize = AudioTrack.getMinBufferSize(22050, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT);
 
             AudioTrack.Builder atBuilder = new AudioTrack.Builder();
-            //builder.setAudioAttributes()
+
             AudioFormat.Builder afBuilder = new AudioFormat.Builder();
 
             afBuilder.setEncoding(AudioFormat.ENCODING_PCM_16BIT)
@@ -637,6 +657,8 @@ public class MyAssistant implements Button.OnButtonEventListener {
                     myFile.setWritable(true);
                     myFile.setReadable(true);
                     fin = new FileInputStream(myFile);
+                    dis = new DataInputStream(fin);
+
                 }catch (FileNotFoundException e){
                     Log.e(TAG, "File not found in constructor!!!", e);
                 }catch (IOException e){
@@ -741,7 +763,16 @@ public class MyAssistant implements Button.OnButtonEventListener {
         @Override
         public void onDone(String utteranceId) {
             Log.i(TAG, "Text to speech synthesis done");
-            MyAssistant.this.mAssistantHandler.post(this.runSynthesizedFile);
+            //MyAssistant.this.mAssistantHandler.post(this.runSynthesizedFile);
+            byte[] arr = new byte[50000];
+            try {
+                dis.read(arr, 44, 50000);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            ByteBuffer audio = ByteBuffer.wrap(arr);
+            Log.d(TAG, "converse audio size: " + audio.remaining());
+            mAssistantResponses.add(audio);
         }
 
         /**
