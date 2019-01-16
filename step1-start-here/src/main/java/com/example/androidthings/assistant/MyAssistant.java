@@ -133,7 +133,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
                             Log.i(TAG, "assistant volume changed: " + mVolumePercentage);
                             float vol = AudioTrack.getMaxVolume() * mVolumePercentage / 100.0f;
                             mAudioTrack.setVolume(vol);
-                            myTTS.setVolume(vol);
+                            myTTS.setVolume(vol/100.0f);
                         }
                         mConversationState = value.getDialogStateOut().getConversationState();
                     }
@@ -520,28 +520,29 @@ public class MyAssistant implements Button.OnButtonEventListener {
         private AudioAttributes attributes;
         private AudioTrack at;
 
+        /**
+         * @see //https://developer.android.com/reference/android/media/AudioTrack
+         */
         private Runnable runSynthesizedFile = new Runnable() {
             @Override
             public void run() {
-                //todo run the file
-                //https://developer.android.com/reference/android/media/AudioTrack
+                if (mDac != null) {
+                    try {
+                        mDac.setSdMode(Max98357A.SD_MODE_LEFT);
+                    } catch (IOException e) {
+                        Log.e(TAG, "unable to modify dac trigger", e);
+                    }
+                }
                 playWav();
-
-                //creating a byte buffer from a file?
-                // http://www.java2s.com/Code/Android/File/LoadsafiletoaByteBuffer.htm
-
-                //note, the AudioTrack object requires you use
-
-                //mAudioTrack is defined in AssistantActivity, which this will be a sub class of.
-
+                if (mDac != null) {
+                    try {
+                        mDac.setSdMode(Max98357A.SD_MODE_SHUTDOWN);
+                    } catch (IOException e) {
+                        Log.e(TAG, "unable to modify dac trigger", e);
+                    }
+                }
                 //AudioTrack.write: https://developer.android.com/reference/android/media/AudioTrack.html#write(java.nio.ByteBuffer,%20int,%20int)
                 //AudioTrack.play: https://developer.android.com/reference/android/media/AudioTrack.html#play()
-                //note, play throws an IllegalStateException
-
-                //reading from file: https://examples.javacodegeeks.com/core-java/io/fileinputstream/read-file-in-byte-array-with-fileinputstream/
-
-                //Audio encoding (used in synthesizes: https://cloud.google.com/speech-to-text/docs/encoding
-
 
                 textToSpeehQueue.remove();//do this last!
                 ttsRunning = false;
@@ -549,6 +550,45 @@ public class MyAssistant implements Button.OnButtonEventListener {
 
             }
         };
+
+        /**
+         * Code taken from here:
+         * https://stackoverflow.com/questions/7372813/android-audiotrack-playing-wav-file-getting-only-white-noise
+         */
+        private void playWav(){
+            Log.d(TAG, "Playing speech to text wav file");
+            String filepath = this.myFile.getAbsolutePath();
+
+            int i = 0;
+            byte[] s = new byte[BUFFER_SIZE];
+            try {
+                Log.i(TAG, "file path is: " + filepath);
+                FileInputStream fin = new FileInputStream(filepath);
+                DataInputStream dis = new DataInputStream(fin);
+
+
+                at.play();
+                //mAudioTrack.play();
+
+                while((i = dis.read(s, 0, BUFFER_SIZE)) > -1){
+                    at.write(s, 0, AudioTrack.WRITE_BLOCKING);
+                    //mAudioTrack.write(s, 0, AudioTrack.WRITE_BLOCKING);
+                    Log.v(TAG, Arrays.toString(s));
+
+                }
+                at.stop();
+                at.release();
+                dis.close();
+                fin.close();
+
+            } catch (FileNotFoundException e) {
+                // TODO
+                e.printStackTrace();
+            } catch (IOException e) {
+                // TODO
+                e.printStackTrace();
+            }
+        }
 
         private TextToSpeech tts;//all the callbacks are linked to this
 
@@ -574,12 +614,17 @@ public class MyAssistant implements Button.OnButtonEventListener {
                     .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
                     .setSampleRate(22050);
 
-            atBuilder.setAudioFormat(afBuilder.build())
+
+            atBuilder
+                    //.setAudioFormat(AUDIO_FORMAT_OUT_MONO)
+                    .setAudioFormat(afBuilder.build())
+                    .setTransferMode(AudioTrack.MODE_STREAM)
                     .setBufferSizeInBytes(minBufferSize)
                     .setAudioAttributes(attributes);
 
             at = atBuilder.build();
             at.setPreferredDevice(MyAssistant.this.mAudioOutputDevice);
+            at.setVolume(1.0f);
 
             //todo: you might need to specify the TTS engine so you can pass the encoding when you synthesize the file
             //https://developer.android.com/reference/android/speech/tts/TextToSpeech#TextToSpeech(android.content.Context,%20android.speech.tts.TextToSpeech.OnInitListener,%20java.lang.String)
@@ -610,6 +655,10 @@ public class MyAssistant implements Button.OnButtonEventListener {
             return available;
         }
 
+        /**
+         * setVolume really needs to be between 0 and 1
+         * @param vol
+         */
         public void setVolume(float vol){
             at.setVolume(vol);
         }
@@ -665,42 +714,6 @@ public class MyAssistant implements Button.OnButtonEventListener {
             }
         }
 
-        /**
-         * Code taken from here:
-         * https://stackoverflow.com/questions/7372813/android-audiotrack-playing-wav-file-getting-only-white-noise
-         */
-        private void playWav(){
-            Log.d(TAG, "Playing speech to text wav file");
-            String filepath = this.myFile.getAbsolutePath();
-
-            int i = 0;
-            byte[] s = new byte[BUFFER_SIZE];
-            try {
-                Log.i(TAG, "file path is: " + filepath);
-                FileInputStream fin = new FileInputStream(filepath);
-                DataInputStream dis = new DataInputStream(fin);
-
-
-                at.play();
-
-                while((i = dis.read(s, 0, BUFFER_SIZE)) > -1){
-                    at.write(s, 0, i);
-                    Log.v(TAG, Arrays.toString(s));
-
-                }
-                at.stop();
-                at.release();
-                dis.close();
-                fin.close();
-
-            } catch (FileNotFoundException e) {
-                // TODO
-                e.printStackTrace();
-            } catch (IOException e) {
-                // TODO
-                e.printStackTrace();
-            }
-        }
 
 //********************************CALLBACKS*************************************
 
