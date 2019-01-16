@@ -207,6 +207,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
                         Log.d(TAG, "Playing a bit of audio");
                         mAudioTrack.write(buf, buf.remaining(),
                                 AudioTrack.WRITE_BLOCKING);
+
                         //todo: according to this https://developer.android.com/reference/android/media/AudioTrack#play()
                         //write is where audio to be played is determined.
                     }
@@ -541,13 +542,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
         private Runnable runSynthesizedFile = new Runnable() {
             @Override
             public void run() {
-                if (mDac != null) {
-                    try {
-                        mDac.setSdMode(Max98357A.SD_MODE_LEFT);
-                    } catch (IOException e) {
-                        Log.e(TAG, "unable to modify dac trigger", e);
-                    }
-                }
+
                 playWav();
                 if (mDac != null) {
                     try {
@@ -602,21 +597,28 @@ public class MyAssistant implements Button.OnButtonEventListener {
             byte[] s = new byte[BUFFER_SIZE];
             try {
                 Log.i(TAG, "file path is: " + this.myFile.getAbsolutePath());
-                ByteBuffer audio = resampleFile();
+                //ByteBuffer audio = resampleFile();
 
-                //at.play();
-                mAudioTrack.play();
+                at.play();
+                //mAudioTrack.play();
+                if (mDac != null) {
+                    try {
+                        mDac.setSdMode(Max98357A.SD_MODE_LEFT);
+                    } catch (IOException e) {
+                        Log.e(TAG, "unable to modify dac trigger", e);
+                    }
+                }
 
-                /*
                 while((i = dis.read(s, 0, BUFFER_SIZE)) > -1){
 
-                    at.write(s, 0, AudioTrack.WRITE_BLOCKING);
+                    int status = at.write(s, 0,  i, AudioTrack.WRITE_BLOCKING);
                     //mAudioTrack.write(s, 0, AudioTrack.WRITE_BLOCKING);
-                    Log.v(TAG, Arrays.toString(s));
+                    Log.v(TAG, "status: " + status + " data: "+ Arrays.toString(s));
 
 
                 }
-                */
+
+                /*
                 for (ByteBuffer audioData : mAssistantResponses) {
                     final ByteBuffer buf = audioData;
                     Log.d(TAG, "Playing a bit of audio");
@@ -625,6 +627,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
                     //todo: according to this https://developer.android.com/reference/android/media/AudioTrack#play()
                     //write is where audio to be played is determined.
                 }
+                */
                 /*
                 try {
                     while(at.getPlayState() == AudioTrack.PLAYSTATE_PLAYING){
@@ -637,8 +640,8 @@ public class MyAssistant implements Button.OnButtonEventListener {
                 */
 
                 //at.flush();
-                //at.stop();
-                mAudioTrack.stop();
+                at.stop();
+                //mAudioTrack.stop();
                 //at.release();
                 //mAudioTrack.release();
                 dis.close();
