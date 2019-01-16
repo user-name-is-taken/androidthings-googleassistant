@@ -15,6 +15,8 @@ import android.speech.tts.UtteranceProgressListener;
 import android.util.Log;
 import android.widget.ArrayAdapter;
 import android.widget.ListView;
+
+import com.asha.libresample2.Resample;
 import com.example.androidthings.assistant.shared.BoardDefaults;
 import com.example.androidthings.assistant.shared.Credentials;
 import com.example.androidthings.assistant.shared.MyDevice;
@@ -32,6 +34,7 @@ import com.google.assistant.embedded.v1alpha2.DeviceConfig;
 import com.google.assistant.embedded.v1alpha2.DialogStateIn;
 import com.google.assistant.embedded.v1alpha2.EmbeddedAssistantGrpc;
 import com.google.assistant.embedded.v1alpha2.SpeechRecognitionResult;
+import com.google.common.primitives.Ints;
 import com.google.protobuf.ByteString;
 
 import org.json.JSONArray;
@@ -366,7 +369,14 @@ public class MyAssistant implements Button.OnButtonEventListener {
             if (mAudioOutputDevice == null) {
                 Log.e(TAG, "failed to found preferred audio output device, using default");
             }
+        }else{
+            mAudioOutputDevice = findAudioDevice(AudioManager.GET_DEVICES_OUTPUTS,
+                    AudioDeviceInfo.TYPE_BUILTIN_SPEAKER);
+            if (mAudioOutputDevice == null) {
+                Log.e(TAG, "failed to found preferred audio output device, using default");
+            }
         }
+
 
         try {
             if (USE_VOICEHAT_DAC) {
@@ -430,6 +440,9 @@ public class MyAssistant implements Button.OnButtonEventListener {
         AudioManager manager = (AudioManager) this.context.getSystemService(Context.AUDIO_SERVICE);
         AudioDeviceInfo[] adis = manager.getDevices(deviceFlag);
         for (AudioDeviceInfo adi : adis) {
+            Log.i(TAG, "product name: " + adi.getProductName());
+            Log.i(TAG, "type: " + adi.getType());
+
             if (adi.getType() == deviceType) {
                 return adi;
             }
@@ -510,6 +523,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
 
         private boolean available = false;
         private boolean ttsRunning = false;
+        private Resample resample;
 
 
         private LinkedList<String> textToSpeehQueue;
@@ -552,34 +566,64 @@ public class MyAssistant implements Button.OnButtonEventListener {
             }
         };
 
+        private int getFileSize(){
+            byte[] fileSize = new byte[4];
+            try {
+                dis.read(fileSize, 40, 4);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            int fileLen = Ints.fromByteArray(fileSize);
+            Log.i(TAG, "Length of the file is: " + fileLen);
+            return fileLen;
+        }
+
+        private ByteBuffer resampleFile(){
+            Log.d(TAG, "Resampling");
+
+            byte[] mikeByte = new byte[getFileSize()];
+            ByteBuffer in = ByteBuffer.wrap(mikeByte, 44, mikeByte.length);
+
+            ByteBuffer out = ByteBuffer.allocate(mikeByte.length);
+            resample.resample(in, out, mikeByte.length);//returns an int?
+            return out;
+        }
         /**
          * Code taken from here:
          * https://stackoverflow.com/questions/7372813/android-audiotrack-playing-wav-file-getting-only-white-noise
          */
         private void playWav(){
+
+
             Log.d(TAG, "Playing speech to text wav file");
-            String filepath = this.myFile.getAbsolutePath();
+
 
             int i = 0;
             byte[] s = new byte[BUFFER_SIZE];
             try {
-                Log.i(TAG, "file path is: " + filepath);
-                //FileInputStream fin = new FileInputStream(filepath);
-                //DataInputStream dis = new DataInputStream(fin);
+                Log.i(TAG, "file path is: " + this.myFile.getAbsolutePath());
+                ByteBuffer audio = resampleFile();
 
+                //at.play();
+                mAudioTrack.play();
 
-                at.play();
-                //mAudioTrack.play();
-
+                /*
                 while((i = dis.read(s, 0, BUFFER_SIZE)) > -1){
 
                     at.write(s, 0, AudioTrack.WRITE_BLOCKING);
                     //mAudioTrack.write(s, 0, AudioTrack.WRITE_BLOCKING);
                     Log.v(TAG, Arrays.toString(s));
-                    /*
 
-                    */
 
+                }
+                */
+                for (ByteBuffer audioData : mAssistantResponses) {
+                    final ByteBuffer buf = audioData;
+                    Log.d(TAG, "Playing a bit of audio");
+                    mAudioTrack.write(buf, buf.remaining(),
+                            AudioTrack.WRITE_BLOCKING);
+                    //todo: according to this https://developer.android.com/reference/android/media/AudioTrack#play()
+                    //write is where audio to be played is determined.
                 }
                 /*
                 try {
@@ -593,8 +637,8 @@ public class MyAssistant implements Button.OnButtonEventListener {
                 */
 
                 //at.flush();
-                at.stop();
-                //mAudioTrack.stop();
+                //at.stop();
+                mAudioTrack.stop();
                 //at.release();
                 //mAudioTrack.release();
                 dis.close();
@@ -623,7 +667,11 @@ public class MyAssistant implements Button.OnButtonEventListener {
             attributes = audioAttributesBuilder.build();
             this.textToSpeehQueue = new LinkedList<>();
 
-            int minBufferSize = AudioTrack.getMinBufferSize(22050, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT);
+            int minBufferSize = AudioTrack.getMinBufferSize(SAMPLE_RATE, AudioFormat.CHANNEL_OUT_MONO,
+                    AudioFormat.ENCODING_PCM_16BIT);
+
+            resample = new Resample();
+            resample.create(22050, SAMPLE_RATE, minBufferSize, 1);
 
             AudioTrack.Builder atBuilder = new AudioTrack.Builder();
 
@@ -631,7 +679,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
 
             afBuilder.setEncoding(AudioFormat.ENCODING_PCM_16BIT)
                     .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                    .setSampleRate(22050);
+                    .setSampleRate(SAMPLE_RATE);
 
 
             atBuilder
