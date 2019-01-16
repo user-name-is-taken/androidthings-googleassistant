@@ -135,8 +135,10 @@ public class MyAssistant implements Button.OnButtonEventListener {
                             mVolumePercentage = volume;
                             Log.i(TAG, "assistant volume changed: " + mVolumePercentage);
                             float vol = AudioTrack.getMaxVolume() * mVolumePercentage / 100.0f;
+                            myTTS.speak("Volume set");
                             mAudioTrack.setVolume(vol);
                             myTTS.setVolume(vol/100.0f);
+
                         }
                         mConversationState = value.getDialogStateOut().getConversationState();
                     }
@@ -517,6 +519,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
 
     public class CustomTTS extends UtteranceProgressListener implements TextToSpeech.OnInitListener {
 
+        private static final int TTS_SAMPLE_RATE = 22050;
         private static final String TTS_ENGINE = "com.svox.pico";
 
         private static final String UTTERANCE_ID =
@@ -544,16 +547,6 @@ public class MyAssistant implements Button.OnButtonEventListener {
             public void run() {
 
                 playWav();
-                if (mDac != null) {
-                    try {
-                        mDac.setSdMode(Max98357A.SD_MODE_SHUTDOWN);
-                    } catch (IOException e) {
-                        Log.e(TAG, "unable to modify dac trigger", e);
-                    }
-                }
-                //AudioTrack.write: https://developer.android.com/reference/android/media/AudioTrack.html#write(java.nio.ByteBuffer,%20int,%20int)
-                //AudioTrack.play: https://developer.android.com/reference/android/media/AudioTrack.html#play()
-
                 textToSpeehQueue.remove();//do this last!
                 ttsRunning = false;
                 synthesizeNextFile();
@@ -561,6 +554,13 @@ public class MyAssistant implements Button.OnButtonEventListener {
             }
         };
 
+
+
+        /**
+         * Gets the size of a wav file from the header (the 40 - 44th bytes)
+         *
+         * @return an int size of the file
+         */
         private int getFileSize(){
             byte[] fileSize = new byte[4];
             try {
@@ -573,6 +573,10 @@ public class MyAssistant implements Button.OnButtonEventListener {
             return fileLen;
         }
 
+        /**
+         * Changes the file from 22050 to 16000
+         * @return a ByteBuffer for the resampled file
+         */
         private ByteBuffer resampleFile(){
             Log.d(TAG, "Resampling");
 
@@ -588,19 +592,16 @@ public class MyAssistant implements Button.OnButtonEventListener {
          * https://stackoverflow.com/questions/7372813/android-audiotrack-playing-wav-file-getting-only-white-noise
          */
         private void playWav(){
-
-
             Log.d(TAG, "Playing speech to text wav file");
-
 
             int i = 0;
             byte[] s = new byte[BUFFER_SIZE];
             try {
+                fin = new FileInputStream(this.myFile);
+                dis = new DataInputStream(this.fin);
                 Log.i(TAG, "file path is: " + this.myFile.getAbsolutePath());
                 //ByteBuffer audio = resampleFile();
-
                 at.play();
-                //mAudioTrack.play();
                 if (mDac != null) {
                     try {
                         mDac.setSdMode(Max98357A.SD_MODE_LEFT);
@@ -610,42 +611,24 @@ public class MyAssistant implements Button.OnButtonEventListener {
                 }
 
                 while((i = dis.read(s, 0, BUFFER_SIZE)) > -1){
-
                     int status = at.write(s, 0,  i, AudioTrack.WRITE_BLOCKING);
-                    //mAudioTrack.write(s, 0, AudioTrack.WRITE_BLOCKING);
                     Log.v(TAG, "status: " + status + " data: "+ Arrays.toString(s));
-
-
                 }
-
-                /*
-                for (ByteBuffer audioData : mAssistantResponses) {
-                    final ByteBuffer buf = audioData;
-                    Log.d(TAG, "Playing a bit of audio");
-                    mAudioTrack.write(buf, buf.remaining(),
-                            AudioTrack.WRITE_BLOCKING);
-                    //todo: according to this https://developer.android.com/reference/android/media/AudioTrack#play()
-                    //write is where audio to be played is determined.
-                }
-                */
-                /*
-                try {
-                    while(at.getPlayState() == AudioTrack.PLAYSTATE_PLAYING){
-                        Thread.sleep(100);
-                        Log.i(TAG, "PLAYING audioTrack");
-                    }
-                }catch (InterruptedException e){
-                    Log.e(TAG, "interrupted exception", e);
-                }
-                */
-
-                //at.flush();
+                Log.i(TAG, "done playing file!");
                 at.stop();
-                //mAudioTrack.stop();
                 //at.release();
-                //mAudioTrack.release();
                 dis.close();
                 fin.close();
+                //https://stackoverflow.com/questions/12347823/how-to-reopen-a-file-from-a-input-stream
+                if (mDac != null) {
+                    try {
+                        mDac.setSdMode(Max98357A.SD_MODE_SHUTDOWN);
+                    } catch (IOException e) {
+                        Log.e(TAG, "unable to modify dac trigger", e);
+                    }
+                }
+                //AudioTrack.write: https://developer.android.com/reference/android/media/AudioTrack.html#write(java.nio.ByteBuffer,%20int,%20int)
+                //AudioTrack.play: https://developer.android.com/reference/android/media/AudioTrack.html#play()
 
             } catch (FileNotFoundException e) {
                 // TODO
@@ -674,7 +657,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
                     AudioFormat.ENCODING_PCM_16BIT);
 
             resample = new Resample();
-            resample.create(22050, SAMPLE_RATE, minBufferSize, 1);
+            resample.create(TTS_SAMPLE_RATE, SAMPLE_RATE, minBufferSize, 1);
 
             AudioTrack.Builder atBuilder = new AudioTrack.Builder();
 
@@ -682,7 +665,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
 
             afBuilder.setEncoding(AudioFormat.ENCODING_PCM_16BIT)
                     .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                    .setSampleRate(SAMPLE_RATE);
+                    .setSampleRate(TTS_SAMPLE_RATE);
 
 
             atBuilder
@@ -694,7 +677,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
 
             at = atBuilder.build();
             at.setPreferredDevice(MyAssistant.this.mAudioOutputDevice);
-            at.setVolume(1.0f);
+            this.setVolume(1.0f);
 
             //todo: you might need to specify the TTS engine so you can pass the encoding when you synthesize the file
             //https://developer.android.com/reference/android/speech/tts/TextToSpeech#TextToSpeech(android.content.Context,%20android.speech.tts.TextToSpeech.OnInitListener,%20java.lang.String)
@@ -706,9 +689,6 @@ public class MyAssistant implements Button.OnButtonEventListener {
                     myFile.deleteOnExit();
                     myFile.setWritable(true);
                     myFile.setReadable(true);
-                    fin = new FileInputStream(myFile);
-                    dis = new DataInputStream(fin);
-
                 }catch (FileNotFoundException e){
                     Log.e(TAG, "File not found in constructor!!!", e);
                 }catch (IOException e){
