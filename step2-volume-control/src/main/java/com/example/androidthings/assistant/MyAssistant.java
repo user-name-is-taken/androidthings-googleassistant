@@ -58,14 +58,14 @@ import io.grpc.ManagedChannelBuilder;
 import io.grpc.auth.MoreCallCredentials;
 import io.grpc.stub.StreamObserver;
 
-public class MyAssistant implements Button.OnButtonEventListener {
+public class MyAssistant implements Button.OnButtonEventListener, AudioTrack.OnPlaybackPositionUpdateListener {
     private Context context;
     public static ListView assistantRequestsListView;
 
     private static final String TAG = AssistantActivity.class.getSimpleName();
 
     // Peripheral and drivers constants.
-    private static final boolean USE_VOICEHAT_DAC = true;
+    public static final boolean USE_VOICEHAT_DAC = true;
     private static final int BUTTON_DEBOUNCE_DELAY_MS = 20;
 
     // Audio constants.
@@ -133,7 +133,6 @@ public class MyAssistant implements Button.OnButtonEventListener {
                             mVolumePercentage = volume;
                             Log.i(TAG, "assistant volume changed: " + mVolumePercentage);
                             float vol = AudioTrack.getMaxVolume() * mVolumePercentage / 100.0f;
-                            myTTS.speak("Volume set");
                             mAudioTrack.setVolume(vol);
                             myTTS.setVolume(vol/100.0f);
 
@@ -186,11 +185,13 @@ public class MyAssistant implements Button.OnButtonEventListener {
 
                 @Override
                 public void onCompleted() {
-                    mAudioTrack = new AudioTrack.Builder()
-                            .setAudioFormat(AUDIO_FORMAT_OUT_MONO)
-                            .setBufferSizeInBytes(mOutputBufferSize)
-                            .setTransferMode(AudioTrack.MODE_STREAM)
-                            .build();
+                    if(mAudioTrack == null) {
+                        mAudioTrack = new MyAudioTrack.Builder()
+                                .setAudioFormat(AUDIO_FORMAT_OUT_MONO)
+                                .setBufferSizeInBytes(mOutputBufferSize)
+                                .setTransferMode(AudioTrack.MODE_STREAM)
+                                .build();
+                    }
                     //todo check if you need to set volume like this
                     float vol = AudioTrack.getMaxVolume() * mVolumePercentage / 100.0f;
                     mAudioTrack.setVolume(vol);
@@ -199,13 +200,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
                         mAudioTrack.setPreferredDevice(mAudioOutputDevice);
                     }
                     mAudioTrack.play();
-                    if (mDac != null) {
-                        try {
-                            mDac.setSdMode(Max98357A.SD_MODE_LEFT);
-                        } catch (IOException e) {
-                            Log.e(TAG, "unable to modify dac trigger", e);
-                        }
-                    }
+
                     for (ByteBuffer audioData : mAssistantResponses) {
                         final ByteBuffer buf = audioData;
                         Log.d(TAG, "Playing a bit of audio");
@@ -217,13 +212,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
                     }
                     mAssistantResponses.clear();
                     mAudioTrack.stop();
-                    if (mDac != null) {
-                        try {
-                            mDac.setSdMode(Max98357A.SD_MODE_SHUTDOWN);
-                        } catch (IOException e) {
-                            Log.e(TAG, "unable to modify dac trigger", e);
-                        }
-                    }
+
 
                     Log.i(TAG, "assistant response finished");
                     if (mLed != null) {
@@ -259,7 +248,6 @@ public class MyAssistant implements Button.OnButtonEventListener {
     // Hardware peripherals.
     private Button mButton;
     private Gpio mLed;
-    private Max98357A mDac;
 
     // Assistant Thread and Runnables implementing the push-to-talk functionality.
     private ByteString mConversationState = null;
@@ -385,10 +373,6 @@ public class MyAssistant implements Button.OnButtonEventListener {
 
         try {
             if (USE_VOICEHAT_DAC) {
-                Log.i(TAG, "initializing DAC trigger");
-                mDac = VoiceHat.openDac();
-                mDac.setSdMode(Max98357A.SD_MODE_SHUTDOWN);
-
                 mButton = VoiceHat.openButton();
                 mLed = VoiceHat.openLed();
             } else {
@@ -501,17 +485,38 @@ public class MyAssistant implements Button.OnButtonEventListener {
             }
             mButton = null;
         }
-        if (mDac != null) {
+        if (MyAudioTrack.getmDac() != null) {
             try {
-                mDac.close();
+                MyAudioTrack.getmDac().close();
             } catch (IOException e) {
                 Log.w(TAG, "error closing voice hat trigger", e);
             }
-            mDac = null;
+            MyAudioTrack.setmDac(null);
         }
         mAssistantHandler.post(() -> mAssistantHandler.removeCallbacks(mStreamAssistantRequest));
         myTTS.shutdown();
         mAssistantThread.quitSafely();
+    }
+
+    /**
+     * Sets the
+     * @param audioTrack
+     * @see AudioTrack.OnPlaybackPositionUpdateListener
+     */
+    @Override
+    public void onMarkerReached(AudioTrack audioTrack) {
+        if(audioTrack == mAudioTrack){
+            audioTrack.getPlaybackHeadPosition();
+            mAudioTrack.getNotificationMarkerPosition();
+
+        }
+    }
+
+    @Override
+    public void onPeriodicNotification(AudioTrack audioTrack) {
+        if(audioTrack == mAudioTrack){
+
+        }
     }
 
 
@@ -519,6 +524,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
      */
 
     /**
+     * todo: make sure these voices aren't playing when assistant responses are playing
      *
      * @see <a href="https://stackoverflow.com/questions/54207935/what-paramaters-does-androids-audiotrack-need-to-play-the-output-of-texttospeec?noredirect=1#comment95270962_54207935">
      *     my stack overflow post about this</a>
@@ -534,12 +540,11 @@ public class MyAssistant implements Button.OnButtonEventListener {
         //private Resample resample;
 
 
-        private static final int BUFFER_SIZE = 512;
-
         private AudioAttributes attributes;
-        private AudioTrack at;
-        private AudioTrack.Builder atBuilder;
+        //private AudioTrack at;
+        //private AudioTrack.Builder atBuilder;
 
+        private AudioFormat.Builder afBuilder;
         /**
          * Changes the file from 22050 to 16000
          * @return a ByteBuffer for the resampled file
@@ -573,24 +578,13 @@ public class MyAssistant implements Button.OnButtonEventListener {
             resample = new Resample();
             resample.create(TTS_SAMPLE_RATE, SAMPLE_RATE, minBufferSize, 1);
 */
-            atBuilder = new AudioTrack.Builder();
+//            atBuilder = new AudioTrack.Builder();
 
-            AudioFormat.Builder afBuilder = new AudioFormat.Builder();
+            this.afBuilder = new AudioFormat.Builder();
 
             afBuilder.setEncoding(AudioFormat.ENCODING_PCM_16BIT)
                     .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
                     .setSampleRate(TTS_SAMPLE_RATE);
-
-
-            atBuilder
-                    //.setAudioFormat(AUDIO_FORMAT_OUT_MONO)
-                    .setAudioFormat(afBuilder.build())
-                    .setTransferMode(AudioTrack.MODE_STREAM)
-                    .setBufferSizeInBytes(mOutputBufferSize)
-                    .setAudioAttributes(attributes);
-
-            //this.setVolume(1.0f);
-
             //todo: you might need to specify the TTS engine so you can pass the encoding when you synthesize the file
             //https://developer.android.com/reference/android/speech/tts/TextToSpeech#TextToSpeech(android.content.Context,%20android.speech.tts.TextToSpeech.OnInitListener,%20java.lang.String)
 
@@ -604,7 +598,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
          * @param vol a float between 0 and 1 that sets the volume
          */
         public void setVolume(float vol){
-            at.setVolume(vol);
+            mAudioTrack.setVolume(vol);
         }
 
         /**
@@ -634,12 +628,48 @@ public class MyAssistant implements Button.OnButtonEventListener {
             //pre lolipop devices: https://stackoverflow.com/questions/34562771/how-to-save-audio-file-from-speech-synthesizer-in-android-android-speech-tts
             params.putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, UTTERANCE_ID);
             //You were explicitly setting the engine here. You should add that in.
-            tts.speak(textToSpeak, tts.QUEUE_ADD, params, UTTERANCE_ID);
+            this.tts.speak(textToSpeak, tts.QUEUE_ADD, params, UTTERANCE_ID);
         }
 
 
 
+
 //********************************CALLBACKS*************************************
+        /**
+         * This method is Overriden from the TextToSpeech.OnInitListener interface.
+         * It is called when the ttsEngine is initialized.
+         * @param status
+         * @see TextToSpeech.OnInitListener#onInit(int)
+         */
+        @Override
+        public void onInit(int status) {
+            if (status == TextToSpeech.SUCCESS) {
+                Log.i(TAG, "Created text to speech engine");
+
+                try {
+                    this.tts.setAudioAttributes(attributes);
+
+                    //Locale.ENGLISH
+                    Locale myLoc = new Locale("en", "US");
+                    //Locale myLoc = Locale.US;
+                    Locale.setDefault(myLoc);
+                    //I'm having an error where the local isn't set.
+                    // this sets the local: https://proandroiddev.com/change-language-programmatically-at-runtime-on-android-5e6bc15c758
+                    //I don't think this is why the speech isn't working.
+                    this.tts.setLanguage(myLoc);
+                    this.tts.setPitch(1f);
+                    this.tts.setSpeechRate(1f);
+                    this.tts.setOnUtteranceProgressListener(this);
+                } catch (Exception e) {
+                    Log.e(TAG, "Error creating Custom TTS", e);
+                }
+                //this.speak("Hello world");
+                //AudioPlaybackConfiguration
+            } else {
+                Log.w(TAG, "Could not open TTS Engine (onInit status=" + status + ")");
+                //ttsEngine = null;
+            }
+        }//end onInit
 
         /**
          *
@@ -650,42 +680,56 @@ public class MyAssistant implements Button.OnButtonEventListener {
         @Override
         public void onStart(String utteranceId) {
             Log.i(TAG, "Text to speech engine started");
-            at = atBuilder.build();
-            at.setPreferredDevice(MyAssistant.this.mAudioOutputDevice);
-            at.play();
-            if (mDac != null) {
-                try {
-                    mDac.setSdMode(Max98357A.SD_MODE_LEFT);
-                } catch (IOException e) {
-                    Log.e(TAG, "unable to modify dac trigger", e);
-                }
-            }
-
+            mAudioTrack = new AudioTrack.Builder()
+                    .setAudioFormat(this.afBuilder.build())
+                    .setBufferSizeInBytes(mOutputBufferSize)
+                    .setTransferMode(AudioTrack.MODE_STREAM)
+                    .build();
+            mAudioTrack.setPreferredDevice(MyAssistant.this.mAudioOutputDevice);
+            mAudioTrack.play();
         }
+
+
+        /**
+         * Simply logs the fact that audio is available to be spoken
+         *
+         * @param utteranceId the ID of the audio to be spoken
+         * @param audio the byte array of the audio.
+         *        todo: you might be able to play this audio directly with AudioTrack
+         * @see UtteranceProgressListener#onAudioAvailable(String, byte[])
+         * @see this#speak(String)
+         */
+        @Override
+        public void onAudioAvailable(String utteranceId, byte[] audio){
+            super.onAudioAvailable(utteranceId, audio);
+            Log.d(TAG, "Text to speech engine audio available");
+            Log.i(TAG, "Audio play state " + mAudioTrack.getPlayState());
+            int status = mAudioTrack.write(audio, 0,  audio.length
+                    , AudioTrack.WRITE_NON_BLOCKING);
+            Log.v(TAG, "status: " + status + " data: "+ Arrays.toString(audio));
+        }
+
 
         /**
          * Is called when synthesizeToFile finishes. Adds a runSynthesizedFile
          * runnable to the handler's queue so the file can be spoken.
          *
+         * todo: check mAudioTrack's queue before stopping, flushing...
+         * use this methodhttps://developer.android.com/reference/android/media/AudioTrack.html#setPlaybackPositionUpdateListener(android.media.AudioTrack.OnPlaybackPositionUpdateListener,%20android.os.Handler)
+         * Also use setNotificationMarkerPosiiton
+         *
          * @param utteranceId
          * @see this#onDone(String)
          * @see UtteranceProgressListener
-         * @see this#textToSpeehQueue
+         *
          */
         @Override
         public void onDone(String utteranceId) {
-            Log.i(TAG, "Text to speech synthesis done");
-            at.flush();
-            Log.i(TAG, "done playing file!");
-            at.stop();
-            //at.release();
-            if (mDac != null) {
-                try {
-                    mDac.setSdMode(Max98357A.SD_MODE_SHUTDOWN);
-                } catch (IOException e) {
-                    Log.e(TAG, "unable to modify dac trigger", e);
-                }
-            }
+            Log.i(TAG, "utterance done!");
+            mAudioTrack.stop();
+            //mAudioTrack.reloadStaticData();
+            //mAudioTrack.release();
+            //this.speak("hello world");
         }
 
         /**
@@ -737,63 +781,5 @@ public class MyAssistant implements Button.OnButtonEventListener {
             Log.e(TAG, "TextToSpeech: utterance error.");
         }
 
-        /**
-         * Simply logs the fact that audio is available to be spoken
-         *
-         * @param utteranceId the ID of the audio to be spoken
-         * @param audio the byte array of the audio.
-         *        todo: you might be able to play this audio directly with AudioTrack
-         * @see UtteranceProgressListener#onAudioAvailable(String, byte[])
-         * @see this#speak(String)
-         */
-        @Override
-        public void onAudioAvailable(String utteranceId, byte[] audio){
-            super.onAudioAvailable(utteranceId, audio);
-            Log.d(TAG, "Text to speech engine audio available");
-            int status = at.write(audio, 0,  audio.length
-                    , AudioTrack.WRITE_BLOCKING);
-            Log.v(TAG, "status: " + status + " data: "+ Arrays.toString(audio));
-        }
-
-
-
-        /**
-         * This method is Overriden from the TextToSpeech.OnInitListener interface.
-         * It is called when the ttsEngine is initialized.
-         * @param status
-         * @see TextToSpeech.OnInitListener#onInit(int)
-         */
-        @Override
-        public void onInit(int status) {
-            if (status == TextToSpeech.SUCCESS) {
-                Log.i(TAG, "Created text to speech engine");
-
-                try {
-                    this.tts.setAudioAttributes(attributes);
-
-                    //Locale.ENGLISH
-                    Locale myLoc = new Locale("en", "US");
-                    //Locale myLoc = Locale.US;
-                    Locale.setDefault(myLoc);
-                    //I'm having an error where the local isn't set.
-                    // this sets the local: https://proandroiddev.com/change-language-programmatically-at-runtime-on-android-5e6bc15c758
-                    //I don't think this is why the speech isn't working.
-                    this.tts.setLanguage(myLoc);
-                    this.tts.setPitch(1f);
-                    this.tts.setSpeechRate(1f);
-                    this.tts.setOnUtteranceProgressListener(this);
-                } catch (Exception e) {
-                    Log.e(TAG, "Error creating Custom TTS", e);
-                }
-                this.speak("Hello world");
-                //AudioPlaybackConfiguration
-            } else {
-                Log.w(TAG, "Could not open TTS Engine (onInit status=" + status + ")");
-                //ttsEngine = null;
-            }
-        }//end onInit
     }
-
-
-
 }
