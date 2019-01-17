@@ -193,6 +193,10 @@ public class MyAssistant implements Button.OnButtonEventListener {
                             .setBufferSizeInBytes(mOutputBufferSize)
                             .setTransferMode(AudioTrack.MODE_STREAM)
                             .build();
+                    //todo check if you need to set volume like this
+                    float vol = AudioTrack.getMaxVolume() * mVolumePercentage / 100.0f;
+                    mAudioTrack.setVolume(vol);
+                    //need to maintain volume across these objects?
                     if (mAudioOutputDevice != null) {
                         mAudioTrack.setPreferredDevice(mAudioOutputDevice);
                     }
@@ -516,7 +520,11 @@ public class MyAssistant implements Button.OnButtonEventListener {
     /********************text to speech class!!!!!************************
      */
 
-
+    /**
+     *
+     * @see <a href="https://stackoverflow.com/questions/54207935/what-paramaters-does-androids-audiotrack-need-to-play-the-output-of-texttospeec?noredirect=1#comment95270962_54207935">
+     *     my stack overflow post about this</a>
+     */
     public class CustomTTS extends UtteranceProgressListener implements TextToSpeech.OnInitListener {
 
         private static final int TTS_SAMPLE_RATE = 22050;
@@ -538,6 +546,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
 
         private AudioAttributes attributes;
         private AudioTrack at;
+        private AudioTrack.Builder atBuilder;
 
         /**
          * @see //https://developer.android.com/reference/android/media/AudioTrack
@@ -597,10 +606,14 @@ public class MyAssistant implements Button.OnButtonEventListener {
             int i = 0;
             byte[] s = new byte[BUFFER_SIZE];
             try {
-                fin = new FileInputStream(this.myFile);
-                dis = new DataInputStream(this.fin);
+                this.fin = new FileInputStream(this.myFile);
+                this.dis = new DataInputStream(this.fin);
                 Log.i(TAG, "file path is: " + this.myFile.getAbsolutePath());
+                Log.i(TAG, "Number of bytes, fin: " + fin.available());
+                Log.i(TAG, "Number of bytes, dis:" + dis.available());
                 //ByteBuffer audio = resampleFile();
+                this.at =
+                        .build();
                 at.play();
                 if (mDac != null) {
                     try {
@@ -659,7 +672,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
             resample = new Resample();
             resample.create(TTS_SAMPLE_RATE, SAMPLE_RATE, minBufferSize, 1);
 
-            AudioTrack.Builder atBuilder = new AudioTrack.Builder();
+            atBuilder = new AudioTrack.Builder();
 
             AudioFormat.Builder afBuilder = new AudioFormat.Builder();
 
@@ -675,7 +688,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
                     .setBufferSizeInBytes(minBufferSize)
                     .setAudioAttributes(attributes);
 
-            at = atBuilder.build();
+            //at = this.atBuilder.build();
             at.setPreferredDevice(MyAssistant.this.mAudioOutputDevice);
             this.setVolume(1.0f);
 
@@ -699,23 +712,28 @@ public class MyAssistant implements Button.OnButtonEventListener {
 
 
         /**
-         * Checks if onInit has been called yet, to check if speak can be used yet.
-         * @return
+         * Checks if onInit has been called yet, to check if the tts has been initialized
+         * and speak can be used.
+         *
+         * @return true if the tts has been initialized and speak can be used.
          * @see this#onInit(int)
+         * @see this#speak(String)
          */
         public boolean isAvailable() {
-            return available;
+            return this.available;
         }
 
         /**
          * setVolume really needs to be between 0 and 1
-         * @param vol
+         *
+         * @param vol a float between 0 and 1 that sets the volume
          */
         public void setVolume(float vol){
             at.setVolume(vol);
         }
 
         /**
+         * todo: check if you have to restart this in the next onCreate
          * @see AssistantActivity#onStop()
          */
         public void stop(){
@@ -723,6 +741,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
         }
 
         /**
+         * todo: check if you have to restart this in the next onCreate
          * @see AssistantActivity#onDestroy()
          */
         public void shutdown(){
@@ -737,32 +756,40 @@ public class MyAssistant implements Button.OnButtonEventListener {
          * @param textToSpeak
          */
         public void speak(String textToSpeak){
-            if(isAvailable()) {
+            if(this.isAvailable()) {
                 Log.d(TAG, "Text to speech: inside speak");
                 this.textToSpeehQueue.add(textToSpeak);
                 synthesizeNextFile();
             }else{
                 Log.e(TAG, "MainActivity.ttsEngine.speak(String) received text, but it's not done initializing yet.",
                         new IllegalStateException("eager beaver!"));
-
             }
         }
 
         /**
          * synthesizes the next text in the queue into the temp file if a file isn't currently being spoken.
          *
+         * When this synthesis is done, onDone is called.
+         *
          * @see this#textToSpeehQueue
+         * @see this#onDone(String)
          */
         private void synthesizeNextFile(){
             if(!ttsRunning && !textToSpeehQueue.isEmpty()){
                 ttsRunning = true;
                 Bundle params = new Bundle();
                 //pre lolipop devices: https://stackoverflow.com/questions/34562771/how-to-save-audio-file-from-speech-synthesizer-in-android-android-speech-tts
-
                 params.putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, UTTERANCE_ID);
                 //You were explicitly setting the engine here. You should add that in.
-
                 tts.synthesizeToFile(textToSpeehQueue.peekFirst(), params, myFile, UTTERANCE_ID);
+            }else{
+                if(!ttsRunning){
+                    Log.e(TAG, "Error in synthesizeNextFile", new IllegalStateException("ttsRunning is true." +
+                            " Can't synthesize to a file before the last text is spoken."));
+                }else if(!textToSpeehQueue.isEmpty()){
+                    Log.e(TAG, "Error in synthesizeNextFile", new IllegalStateException("The " +
+                            "textToSpeechQueue is empty so there's no text to speak."));
+                }
             }
         }
 
@@ -781,11 +808,12 @@ public class MyAssistant implements Button.OnButtonEventListener {
         }
 
         /**
-         * Is called when synthesizeToFile finishes. Adds a runnable to the handler's queue
-         * so the file can be spoken
+         * Is called when synthesizeToFile finishes. Adds a runSynthesizedFile
+         * runnable to the handler's queue so the file can be spoken.
          *
          * @param utteranceId
-         * @see UtteranceProgressListener#onDone(String)
+         * @see this#onDone(String)
+         * @see UtteranceProgressListener
          * @see this#textToSpeehQueue
          * @see this#synthesizeNextFile()
          * @see this#runSynthesizedFile
@@ -846,10 +874,13 @@ public class MyAssistant implements Button.OnButtonEventListener {
         }
 
         /**
+         * Simply logs the fact that audio is available to be spoken
          *
-         * @param utteranceId
-         * @param audio
+         * @param utteranceId the ID of the audio to be spoken
+         * @param audio the byte array of the audio.
+         *        todo: you might be able to play this audio directly with AudioTrack
          * @see UtteranceProgressListener#onAudioAvailable(String, byte[])
+         * @see this#speak(String)
          */
         @Override
         public void onAudioAvailable(String utteranceId, byte[] audio){
@@ -884,9 +915,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
                     this.tts.setPitch(1f);
                     this.tts.setSpeechRate(1f);
                     this.tts.setOnUtteranceProgressListener(this);
-
                     available = true;
-
                 } catch (Exception e) {
                     Log.e(TAG, "Error creating Custom TTS", e);
                 }
