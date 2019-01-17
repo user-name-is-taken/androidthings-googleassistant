@@ -122,68 +122,7 @@ public class MyAudioTrack extends AudioTrack {
     }
 
     public static class Builder extends AudioTrack.Builder{
-        /**
-         * Builds an {@link AudioTrack} instance initialized with all the parameters set
-         * on this <code>Builder</code>.
-         * @return a new successfully initialized {@link AudioTrack} instance.
-         * @throws UnsupportedOperationException if the parameters set on the <code>Builder</code>
-         *     were incompatible, or if they are not supported by the device,
-         *     or if the device was not available.
-         */
-        public @NonNull AudioTrack build() throws UnsupportedOperationException {
-            if (mAttributes == null) {
-                mAttributes = new AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_MEDIA)
-                        .build();
-            }
-            switch (mPerformanceMode) {
-                case PERFORMANCE_MODE_LOW_LATENCY:
-                    mAttributes = new AudioAttributes.Builder(mAttributes)
-                            .replaceFlags((mAttributes.getAllFlags()
-                                    | AudioAttributes.FLAG_LOW_LATENCY)
-                                    & ~AudioAttributes.FLAG_DEEP_BUFFER)
-                            .build();
-                    break;
-                case PERFORMANCE_MODE_NONE:
-                    if (!shouldEnablePowerSaving(mAttributes, mFormat, mBufferSizeInBytes, mMode)) {
-                        break; // do not enable deep buffer mode.
-                    }
-                    // permitted to fall through to enable deep buffer
-                case PERFORMANCE_MODE_POWER_SAVING:
-                    mAttributes = new AudioAttributes.Builder(mAttributes)
-                            .replaceFlags((mAttributes.getAllFlags()
-                                    | AudioAttributes.FLAG_DEEP_BUFFER)
-                                    & ~AudioAttributes.FLAG_LOW_LATENCY)
-                            .build();
-                    break;
-            }
-
-            if (mFormat == null) {
-                mFormat = new AudioFormat.Builder()
-                        .setChannelMask(AudioFormat.CHANNEL_OUT_STEREO)
-                        //.setSampleRate(AudioFormat.SAMPLE_RATE_UNSPECIFIED)
-                        .setEncoding(AudioFormat.ENCODING_DEFAULT)
-                        .build();
-            }
-            try {
-                // If the buffer size is not specified in streaming mode,
-                // use a single frame for the buffer size and let the
-                // native code figure out the minimum buffer size.
-                if (mMode == MODE_STREAM && mBufferSizeInBytes == 0) {
-                    mBufferSizeInBytes = mFormat.getChannelCount()
-                            * mFormat.getBytesPerSample(mFormat.getEncoding());
-                }
-                final AudioTrack track = new AudioTrack(
-                        mAttributes, mFormat, mBufferSizeInBytes, mMode, mSessionId);
-                if (track.getState() == STATE_UNINITIALIZED) {
-                    // release is not necessary
-                    throw new UnsupportedOperationException("Cannot create AudioTrack");
-                }
-                return track;
-            } catch (IllegalArgumentException e) {
-                throw new UnsupportedOperationException(e.getMessage());
-            }
-        }
+        
     }
 
     /**********************************
