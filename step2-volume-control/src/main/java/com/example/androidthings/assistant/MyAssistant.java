@@ -135,6 +135,7 @@ public class MyAssistant implements Button.OnButtonEventListener, AudioTrack.OnP
                             float vol = AudioTrack.getMaxVolume() * mVolumePercentage / 100.0f;
                             mAudioTrack.setVolume(vol);
                             myTTS.setVolume(vol/100.0f);
+                            myTTS.speak("volume set");
 
                         }
                         mConversationState = value.getDialogStateOut().getConversationState();
@@ -596,7 +597,7 @@ public class MyAssistant implements Button.OnButtonEventListener, AudioTrack.OnP
          *
          * @param vol a float between 0 and 1 that sets the volume
          */
-        public void setVolume(float vol){
+        public void setVolume(float vol) {
             mAudioTrack.setVolume(vol);
         }
 
@@ -726,9 +727,6 @@ public class MyAssistant implements Button.OnButtonEventListener, AudioTrack.OnP
         public void onDone(String utteranceId) {
             Log.i(TAG, "utterance done!");
             mAudioTrack.stop();
-            //mAudioTrack.reloadStaticData();
-            //mAudioTrack.release();
-            //this.speak("hello world");
         }
 
         /**
@@ -779,6 +777,5 @@ public class MyAssistant implements Button.OnButtonEventListener, AudioTrack.OnP
         public void onError(String utteranceId) {
             Log.e(TAG, "TextToSpeech: utterance error.");
         }
-
     }
 }
