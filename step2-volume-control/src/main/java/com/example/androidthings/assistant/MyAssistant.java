@@ -398,7 +398,7 @@ public class MyAssistant implements Button.OnButtonEventListener, AudioTrack.OnP
         mOutputBufferSize = AudioTrack.getMinBufferSize(AUDIO_FORMAT_OUT_MONO.getSampleRate(),
                 AUDIO_FORMAT_OUT_MONO.getChannelMask(),
                 AUDIO_FORMAT_OUT_MONO.getEncoding());
-        mAudioTrack = new AudioTrack.Builder()
+        mAudioTrack = new MyAudioTrack.Builder()
                 .setAudioFormat(AUDIO_FORMAT_OUT_MONO)
                 .setBufferSizeInBytes(mOutputBufferSize)
                 .build();
@@ -539,22 +539,21 @@ public class MyAssistant implements Button.OnButtonEventListener, AudioTrack.OnP
 
         //private Resample resample;
 
-
         private AudioAttributes attributes;
-        //private AudioTrack at;
-        //private AudioTrack.Builder atBuilder;
 
         private AudioFormat.Builder afBuilder;
         /**
-         * Changes the file from 22050 to 16000
-         * @return a ByteBuffer for the resampled file
+         * Changes audio from CustomTTS#TTS_SAMPLE_RATE to MyAssistant#SAMPLE_RATE
+         *
+         * @param audio this is the audio bytes to be resampled
+         * @return a ByteBuffer of the resampled audio
+         * @see <a href="https://github.com/ashqal/android-libresample">The resample library</a>
+         * @see MyAssistant#SAMPLE_RATE
+         * @see CustomTTS#TTS_SAMPLE_RATE
          */
-        private ByteBuffer resampleFile(byte[] audio){
+        private ByteBuffer resampleAudio(byte[] audio){
             Log.d(TAG, "Resampling");
-
-
             ByteBuffer in = ByteBuffer.wrap(audio, 44, audio.length);
-
             ByteBuffer out = ByteBuffer.allocate(audio.length);
             //resample.resample(in, out, audio.length);//returns an int?
             return out;
@@ -575,10 +574,10 @@ public class MyAssistant implements Button.OnButtonEventListener, AudioTrack.OnP
             attributes = audioAttributesBuilder.build();
 
 /*
-            resample = new Resample();
+            this.resample = new Resample();
             resample.create(TTS_SAMPLE_RATE, SAMPLE_RATE, minBufferSize, 1);
 */
-//            atBuilder = new AudioTrack.Builder();
+
 
             this.afBuilder = new AudioFormat.Builder();
 
@@ -680,7 +679,7 @@ public class MyAssistant implements Button.OnButtonEventListener, AudioTrack.OnP
         @Override
         public void onStart(String utteranceId) {
             Log.i(TAG, "Text to speech engine started");
-            mAudioTrack = new AudioTrack.Builder()
+            mAudioTrack = new MyAudioTrack.Builder()
                     .setAudioFormat(this.afBuilder.build())
                     .setBufferSizeInBytes(mOutputBufferSize)
                     .setTransferMode(AudioTrack.MODE_STREAM)

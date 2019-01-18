@@ -17,15 +17,16 @@ import static android.content.ContentValues.TAG;
 public class MyAudioTrack extends AudioTrack {
     private static Max98357A mDac;
     private boolean safeToStop = false;
+    private boolean stopWhenDone = false;
 
     private AudioTrack.OnPlaybackPositionUpdateListener listener = new OnPlaybackPositionUpdateListener (){
         @Override
         public void onMarkerReached(AudioTrack audioTrack) {
             safeToStop = true;
-            stop();
-            Log.i(TAG, "Text to speech synthesis done");
-            flush();
-            reloadStaticData();
+            if(stopWhenDone) {
+                stop();
+                Log.i(TAG, "Text to speech synthesis done");
+            }
 
         }
         @Override
@@ -34,8 +35,20 @@ public class MyAudioTrack extends AudioTrack {
         }
     };
 
-    public MyAudioTrack(AudioAttributes attributes, AudioFormat format, int bufferSizeInBytes, int mode, int sessionId) throws IllegalArgumentException {
-        super(attributes, format, bufferSizeInBytes, mode, sessionId);
+    /**
+     *
+     * @param streamType
+     * @param sampleRateInHz
+     * @param channelConfig
+     * @param audioFormat
+     * @param bufferSizeInBytes
+     * @param mode
+     * @throws IllegalArgumentException
+     */
+    public MyAudioTrack(int streamType, int sampleRateInHz, int channelConfig, int audioFormat,
+                        int bufferSizeInBytes, int mode) throws IllegalArgumentException {
+        super(streamType, sampleRateInHz, channelConfig, audioFormat, bufferSizeInBytes, mode);
+        Log.i(TAG, "MyAudioTrack made!");
         if(MyAssistant.USE_VOICEHAT_DAC) {
             Log.i(TAG, "initializing DAC trigger");
             try {
@@ -49,7 +62,23 @@ public class MyAudioTrack extends AudioTrack {
         }
     }
 
+    public static class Builder extends AudioTrack.Builder{
+        public MyAudioTrack build(){
+            return new MyAudioTrack(super.build());
+        }
+    }
 
+    /**
+     * This is my best attempt at subclassing AudioTrack so I can still use the builder.
+     * I need to figure
+     * @param audioTrack
+     */
+    public MyAudioTrack(AudioTrack audioTrack){
+        this(audioTrack.getStreamType(), audioTrack.getSampleRate(),
+                audioTrack.getChannelConfiguration(), audioTrack.getAudioFormat(),
+                audioTrack.getBufferSizeInFrames(), MODE_STREAM);
+        setBufferSizeInFrames(audioTrack.getBufferSizeInFrames());
+    }
 
 
 
@@ -63,6 +92,7 @@ public class MyAudioTrack extends AudioTrack {
     @Override
     public void play() throws IllegalStateException {
         super.play();
+        stopWhenDone = false;
         if (mDac != null) {
             Log.i(TAG, "enabling the dac");
             try {
@@ -97,6 +127,7 @@ public class MyAudioTrack extends AudioTrack {
         if(safeToStop){
             forceStop();
         }else{
+            stopWhenDone = true;
             Log.i(TAG, "Tried to stop when it's not safe.");
         }
     }
@@ -108,6 +139,8 @@ public class MyAudioTrack extends AudioTrack {
      * @throws IllegalStateException
      */
     private void forceStop() throws IllegalStateException{
+        super.flush();
+        super.reloadStaticData();
         super.stop();
         if (mDac != null) {
             try {
@@ -121,9 +154,6 @@ public class MyAudioTrack extends AudioTrack {
         }
     }
 
-    public static class Builder extends AudioTrack.Builder{
-        
-    }
 
     /**********************************
      * THESE WRITE METHODS CALL advanceNotificationMaker SO stop can ensure safety
