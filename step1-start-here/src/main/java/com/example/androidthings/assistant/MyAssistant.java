@@ -612,8 +612,8 @@ public class MyAssistant implements Button.OnButtonEventListener {
                 Log.i(TAG, "Number of bytes, fin: " + fin.available());
                 Log.i(TAG, "Number of bytes, dis:" + dis.available());
                 //ByteBuffer audio = resampleFile();
-                this.at =
-                        .build();
+                //this.at =
+                //        .build();
                 at.play();
                 if (mDac != null) {
                     try {
