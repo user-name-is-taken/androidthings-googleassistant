@@ -48,8 +48,10 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.LinkedList;
 import java.util.Locale;
 
@@ -61,6 +63,8 @@ import io.grpc.stub.StreamObserver;
 public class MyAssistant implements Button.OnButtonEventListener, AudioTrack.OnPlaybackPositionUpdateListener {
     private Context context;
     public static ListView assistantRequestsListView;
+
+    private static float volPct;
 
     private static final String TAG = AssistantActivity.class.getSimpleName();
 
@@ -134,7 +138,7 @@ public class MyAssistant implements Button.OnButtonEventListener, AudioTrack.OnP
                             Log.i(TAG, "assistant volume changed: " + mVolumePercentage);
                             float vol = AudioTrack.getMaxVolume() * mVolumePercentage / 100.0f;
                             mAudioTrack.setVolume(vol);
-                            myTTS.setVolume(vol/100.0f);
+                            MyAssistant.volPct = vol;
                             myTTS.speak("volume set");
 
                         }
@@ -531,34 +535,42 @@ public class MyAssistant implements Button.OnButtonEventListener, AudioTrack.OnP
      *     my stack overflow post about this</a>
      */
     public class CustomTTS extends UtteranceProgressListener implements TextToSpeech.OnInitListener {
-
-        private static final int TTS_SAMPLE_RATE = 22050;
         private static final String TTS_ENGINE = "com.svox.pico";
 
         private static final String UTTERANCE_ID =
                 "com.example.androidthings.bluetooth.audio.UTTERANCE_ID";
 
         //private Resample resample;
+        private AudioTrack at;
 
         private AudioAttributes attributes;
 
-        private AudioFormat.Builder afBuilder;
+
+
+        private AudioFormat.Builder afBuilder = new AudioFormat.Builder();
+
+
         /**
-         * Changes audio from CustomTTS#TTS_SAMPLE_RATE to MyAssistant#SAMPLE_RATE
-         *
-         * @param audio this is the audio bytes to be resampled
-         * @return a ByteBuffer of the resampled audio
-         * @see <a href="https://github.com/ashqal/android-libresample">The resample library</a>
-         * @see MyAssistant#SAMPLE_RATE
-         * @see CustomTTS#TTS_SAMPLE_RATE
+         * @see //https://developer.android.com/reference/android/media/AudioTrack
+         * */
+        private LinkedList<MyAudioTrack> textToSpeechQueue;
+
+        /**
+         * Checking if play is blocking.
          */
-        private ByteBuffer resampleAudio(byte[] audio){
-            Log.d(TAG, "Resampling");
-            ByteBuffer in = ByteBuffer.wrap(audio, 44, audio.length);
-            ByteBuffer out = ByteBuffer.allocate(audio.length);
-            //resample.resample(in, out, audio.length);//returns an int?
-            return out;
-        }
+        private Runnable runAt = new Runnable() {
+            @Override
+            public void run() {
+                SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss");
+                Calendar cal = Calendar.getInstance();
+                Log.i(TAG, "Testing is play is blocking start " + sdf.format(cal.getTime()));
+                MyAudioTrack thisAT = textToSpeechQueue.pop();//do this last!
+                thisAT.play();
+                thisAT.stop();//see MyAudioTrack..., this actually calls stop when done...
+                Log.i(TAG, "Testing is play is blocking stop " + sdf.format(cal.getTime()));
+            }
+        };
+
 
         private TextToSpeech tts;//all the callbacks are linked to this
 
@@ -567,6 +579,7 @@ public class MyAssistant implements Button.OnButtonEventListener, AudioTrack.OnP
          * initializes the class so it can use text to speech
          */
         public CustomTTS(){
+            this.textToSpeechQueue = new LinkedList<>();
             Log.i(TAG, "Creating myTTS!");
             AudioAttributes.Builder audioAttributesBuilder = new AudioAttributes.Builder().
                     setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION_SIGNALLING).
@@ -574,32 +587,15 @@ public class MyAssistant implements Button.OnButtonEventListener, AudioTrack.OnP
                     setFlags(AudioAttributes.FLAG_AUDIBILITY_ENFORCED);
             attributes = audioAttributesBuilder.build();
 
-/*
+        /*
             this.resample = new Resample();
             resample.create(TTS_SAMPLE_RATE, SAMPLE_RATE, minBufferSize, 1);
-*/
+        */
 
-
-            this.afBuilder = new AudioFormat.Builder();
-
-            afBuilder.setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                    .setSampleRate(TTS_SAMPLE_RATE);
-            //todo: you might need to specify the TTS engine so you can pass the encoding when you synthesize the file
-            //https://developer.android.com/reference/android/speech/tts/TextToSpeech#TextToSpeech(android.content.Context,%20android.speech.tts.TextToSpeech.OnInitListener,%20java.lang.String)
 
             this.tts = new TextToSpeech(MyAssistant.this.context, this, TTS_ENGINE);
         }//end constructor
 
-
-        /**
-         * setVolume really needs to be between 0 and 1
-         *
-         * @param vol a float between 0 and 1 that sets the volume
-         */
-        public void setVolume(float vol) {
-            mAudioTrack.setVolume(vol);
-        }
 
         /**
          * todo: check if you have to restart this in the next onCreate
@@ -680,15 +676,38 @@ public class MyAssistant implements Button.OnButtonEventListener, AudioTrack.OnP
         @Override
         public void onStart(String utteranceId) {
             Log.i(TAG, "Text to speech engine started");
-            mAudioTrack = new MyAudioTrack.Builder()
-                    .setAudioFormat(this.afBuilder.build())
-                    .setBufferSizeInBytes(mOutputBufferSize)
-                    .setTransferMode(AudioTrack.MODE_STREAM)
-                    .build();
-            mAudioTrack.setPreferredDevice(MyAssistant.this.mAudioOutputDevice);
-            mAudioTrack.play();
         }
 
+
+        /**
+         * This can tell you the audioFormat!!!
+         * @param utteranceId
+         * @param sampleRateInHz
+         * @param audioFormat
+         * @param channelCount
+         * @see <a href="https://developer.android.com/reference/android/media/AudioFormat#CHANNEL_OUT_MONO">
+         *     the AudioFormat docs. "The canonical channel index masks by channel count are given by
+         *     the formula (1 << channelCount) - 1."</a>
+         */
+        @Override
+        public void onBeginSynthesis(String utteranceId, int sampleRateInHz, int audioFormat, int channelCount) {
+            super.onBeginSynthesis(utteranceId, sampleRateInHz, audioFormat, channelCount);
+
+            int canonicalChannelIndex = (1 << channelCount) - 1;
+            afBuilder.setEncoding(audioFormat)
+                    .setChannelMask(canonicalChannelIndex)//for example AudioFormat.CHANNEL_IN_MONO
+                    .setSampleRate(sampleRateInHz);
+
+            //todo: you might need to specify the TTS engine so you can pass the encoding when you synthesize the file
+            //https://developer.android.com/reference/android/speech/tts/TextToSpeech#TextToSpeech(android.content.Context,%20android.speech.tts.TextToSpeech.OnInitListener,%20java.lang.String)
+
+            at = new MyAudioTrack.Builder()
+                    .setAudioFormat(this.afBuilder.build())
+                    .setBufferSizeInBytes(mOutputBufferSize)
+                    .setTransferMode(AudioTrack.MODE_STATIC)
+                    .build();
+            at.setPreferredDevice(MyAssistant.this.mAudioOutputDevice);
+        }
 
         /**
          * Simply logs the fact that audio is available to be spoken
@@ -704,7 +723,7 @@ public class MyAssistant implements Button.OnButtonEventListener, AudioTrack.OnP
             super.onAudioAvailable(utteranceId, audio);
             Log.d(TAG, "Text to speech engine audio available");
             Log.i(TAG, "Audio play state " + mAudioTrack.getPlayState());
-            int status = mAudioTrack.write(audio, 0,  audio.length
+            int status = at.write(audio, 0,  audio.length
                     , AudioTrack.WRITE_NON_BLOCKING);
             Log.v(TAG, "status: " + status + " data: "+ Arrays.toString(audio));
         }
@@ -726,7 +745,7 @@ public class MyAssistant implements Button.OnButtonEventListener, AudioTrack.OnP
         @Override
         public void onDone(String utteranceId) {
             Log.i(TAG, "utterance done!");
-            mAudioTrack.stop();
+            mAssistantHandler.post(runAt);
         }
 
         /**
