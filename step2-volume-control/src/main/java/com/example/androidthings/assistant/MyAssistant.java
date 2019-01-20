@@ -582,12 +582,6 @@ public class MyAssistant implements Button.OnButtonEventListener, AudioTrack.OnP
 
             this.afBuilder = new AudioFormat.Builder();
 
-            afBuilder.setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                    .setSampleRate(TTS_SAMPLE_RATE);
-            //todo: you might need to specify the TTS engine so you can pass the encoding when you synthesize the file
-            //https://developer.android.com/reference/android/speech/tts/TextToSpeech#TextToSpeech(android.content.Context,%20android.speech.tts.TextToSpeech.OnInitListener,%20java.lang.String)
-
             this.tts = new TextToSpeech(MyAssistant.this.context, this, TTS_ENGINE);
         }//end constructor
 
@@ -680,15 +674,34 @@ public class MyAssistant implements Button.OnButtonEventListener, AudioTrack.OnP
         @Override
         public void onStart(String utteranceId) {
             Log.i(TAG, "Text to speech engine started");
+            mAudioTrack.play();
+        }
+
+
+        /**
+         * This can tell you the audioFormat!!!
+         * @param utteranceId
+         * @param sampleRateInHz
+         * @param audioFormat
+         * @param channelCount
+         */
+        @Override
+        public void onBeginSynthesis(String utteranceId, int sampleRateInHz, int audioFormat, int channelCount) {
+            super.onBeginSynthesis(utteranceId, sampleRateInHz, audioFormat, channelCount);
+
+            afBuilder.setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                    .setSampleRate(TTS_SAMPLE_RATE);
+            //todo: you might need to specify the TTS engine so you can pass the encoding when you synthesize the file
+            //https://developer.android.com/reference/android/speech/tts/TextToSpeech#TextToSpeech(android.content.Context,%20android.speech.tts.TextToSpeech.OnInitListener,%20java.lang.String)
+
             mAudioTrack = new MyAudioTrack.Builder()
                     .setAudioFormat(this.afBuilder.build())
                     .setBufferSizeInBytes(mOutputBufferSize)
                     .setTransferMode(AudioTrack.MODE_STREAM)
                     .build();
             mAudioTrack.setPreferredDevice(MyAssistant.this.mAudioOutputDevice);
-            mAudioTrack.play();
         }
-
 
         /**
          * Simply logs the fact that audio is available to be spoken
