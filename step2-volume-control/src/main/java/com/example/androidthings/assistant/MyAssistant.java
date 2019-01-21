@@ -593,6 +593,8 @@ public class MyAssistant implements Button.OnButtonEventListener, AudioTrack.OnP
         */
 
 
+            this.afBuilder = new AudioFormat.Builder();
+
             this.tts = new TextToSpeech(MyAssistant.this.context, this, TTS_ENGINE);
         }//end constructor
 
@@ -685,10 +687,11 @@ public class MyAssistant implements Button.OnButtonEventListener, AudioTrack.OnP
          * @param sampleRateInHz
          * @param audioFormat
          * @param channelCount
+
          * @see <a href="https://developer.android.com/reference/android/media/AudioFormat#CHANNEL_OUT_MONO">
          *     the AudioFormat docs. "The canonical channel index masks by channel count are given by
          *     the formula (1 << channelCount) - 1."</a>
-         */
+\         */
         @Override
         public void onBeginSynthesis(String utteranceId, int sampleRateInHz, int audioFormat, int channelCount) {
             super.onBeginSynthesis(utteranceId, sampleRateInHz, audioFormat, channelCount);
@@ -702,10 +705,12 @@ public class MyAssistant implements Button.OnButtonEventListener, AudioTrack.OnP
             //https://developer.android.com/reference/android/speech/tts/TextToSpeech#TextToSpeech(android.content.Context,%20android.speech.tts.TextToSpeech.OnInitListener,%20java.lang.String)
 
             at = new MyAudioTrack.Builder()
+
                     .setAudioFormat(this.afBuilder.build())
                     .setBufferSizeInBytes(mOutputBufferSize)
                     .setTransferMode(AudioTrack.MODE_STATIC)
                     .build();
+
             at.setPreferredDevice(MyAssistant.this.mAudioOutputDevice);
         }
 
