@@ -173,7 +173,7 @@ public class FilePlayer {
      *     the AudioFormat docs for calculating this int</a>
      */
     private int getChannel(){
-        byte[] mBytes = {this.header[23], this.header[23]};
+        byte[] mBytes = {this.header[22], this.header[23], 0, 0};
         int numChannels = byteArrayToLeInt(mBytes);
         return (1 << numChannels) -1;
     }
@@ -184,10 +184,24 @@ public class FilePlayer {
      * @return the sample rate
      */
     private int getSampleRate(){
-        byte [] mBytes = {header[24], header[25]};
+        byte [] mBytes = {header[24], header[25], 0, 0};
         int sampleRate = byteArrayToLeInt(mBytes);
         Log.i(TAG, "SampleRate is: " + sampleRate);
         return sampleRate;
+    }
+
+    /**
+     * Converts a byte array to a string that can be printed where each byte
+     * is printed in its hex form
+     * @param br
+     * @return
+     */
+    public static String byteArrayToString(byte[] br){
+        String [] sr = new String[br.length];
+        for (int i=0;i<br.length;i++){
+            sr[i] = Integer.toHexString(br[i]);
+        }
+        return Arrays.toString(sr);
     }
 
     /**
@@ -214,7 +228,7 @@ public class FilePlayer {
                 return AudioFormat.ENCODING_DEFAULT;
             default:
                 throw new InvalidParameterException("unknown format in wav headers: " + format +
-                        " The header array found was " + Arrays.toString(header));
+                        " The header array found was " + FilePlayer.byteArrayToString(header));
         }
     }
 
@@ -223,7 +237,7 @@ public class FilePlayer {
      * @return
      */
     private int bytesPerSample(){
-        byte[] mBytes = {header[20], header[21]};
+        byte[] mBytes = {header[20], header[21], 0, 0};
         int blockAlign = byteArrayToLeInt(mBytes);
         Log.i(TAG, "Bytes per sample is: " + blockAlign);
         return blockAlign;
