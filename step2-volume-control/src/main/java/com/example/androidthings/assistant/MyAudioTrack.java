@@ -14,6 +14,12 @@ import java.nio.ByteBuffer;
 
 import static android.content.ContentValues.TAG;
 
+/**
+ * This class overrides AudioTrack so it stays playing until all audio is done playing,
+ * then closes itself when the audio is done playing.
+ *
+ * The class also
+ */
 public class MyAudioTrack extends AudioTrack {
     private static Max98357A mDac;
     private boolean safeToStop = false;
@@ -52,7 +58,7 @@ public class MyAudioTrack extends AudioTrack {
      * @see this#listener
      * @see AudioTrack#setPlaybackPositionUpdateListener(OnPlaybackPositionUpdateListener)
      */
-    public MyAudioTrack(
+    private MyAudioTrack(
             int streamType, int sampleRateInHz, int channelConfig, int audioFormat,
             int bufferSizeInBytes, int mode) throws IllegalArgumentException {
         super(streamType, sampleRateInHz, channelConfig, audioFormat, bufferSizeInBytes, mode);
