@@ -60,7 +60,7 @@ import io.grpc.ManagedChannelBuilder;
 import io.grpc.auth.MoreCallCredentials;
 import io.grpc.stub.StreamObserver;
 
-public class MyAssistant implements Button.OnButtonEventListener, AudioTrack.OnPlaybackPositionUpdateListener {
+public class MyAssistant implements Button.OnButtonEventListener {
     private Context context;
     public static ListView assistantRequestsListView;
 
@@ -503,27 +503,6 @@ public class MyAssistant implements Button.OnButtonEventListener, AudioTrack.OnP
         mAssistantThread.quitSafely();
     }
 
-    /**
-     * Sets the
-     * @param audioTrack
-     * @see AudioTrack.OnPlaybackPositionUpdateListener
-     */
-    @Override
-    public void onMarkerReached(AudioTrack audioTrack) {
-        if(audioTrack == mAudioTrack){
-            audioTrack.getPlaybackHeadPosition();
-            mAudioTrack.getNotificationMarkerPosition();
-
-        }
-    }
-
-    @Override
-    public void onPeriodicNotification(AudioTrack audioTrack) {
-        if(audioTrack == mAudioTrack){
-
-        }
-    }
-
 
     /********************text to speech class!!!!!************************
      */
@@ -537,8 +516,7 @@ public class MyAssistant implements Button.OnButtonEventListener, AudioTrack.OnP
     public class CustomTTS extends UtteranceProgressListener implements TextToSpeech.OnInitListener {
         private static final String TTS_ENGINE = "com.svox.pico";
 
-        private static final String UTTERANCE_ID =
-                "com.example.androidthings.bluetooth.audio.UTTERANCE_ID";
+        private String utterance_ID;
 
         //private Resample resample;
         private AudioTrack at;
@@ -550,26 +528,6 @@ public class MyAssistant implements Button.OnButtonEventListener, AudioTrack.OnP
         private AudioFormat.Builder afBuilder = new AudioFormat.Builder();
 
 
-        /**
-         * @see //https://developer.android.com/reference/android/media/AudioTrack
-         * */
-        private LinkedList<MyAudioTrack> textToSpeechQueue;
-
-        /**
-         * Checking if play is blocking.
-         */
-        private Runnable runAt = new Runnable() {
-            @Override
-            public void run() {
-                SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss");
-                Calendar cal = Calendar.getInstance();
-                Log.i(TAG, "Testing is play is blocking start " + sdf.format(cal.getTime()));
-                MyAudioTrack thisAT = textToSpeechQueue.pop();//do this last!
-                thisAT.play();
-                thisAT.stop();//see MyAudioTrack..., this actually calls stop when done...
-                Log.i(TAG, "Testing is play is blocking stop " + sdf.format(cal.getTime()));
-            }
-        };
 
 
         private TextToSpeech tts;//all the callbacks are linked to this
@@ -579,7 +537,6 @@ public class MyAssistant implements Button.OnButtonEventListener, AudioTrack.OnP
          * initializes the class so it can use text to speech
          */
         public CustomTTS(){
-            this.textToSpeechQueue = new LinkedList<>();
             Log.i(TAG, "Creating myTTS!");
             AudioAttributes.Builder audioAttributesBuilder = new AudioAttributes.Builder().
                     setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION_SIGNALLING).
@@ -623,10 +580,21 @@ public class MyAssistant implements Button.OnButtonEventListener, AudioTrack.OnP
          */
         public void speak(String textToSpeak){
             Bundle params = new Bundle();
-            //pre lolipop devices: https://stackoverflow.com/questions/34562771/how-to-save-audio-file-from-speech-synthesizer-in-android-android-speech-tts
-            params.putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, UTTERANCE_ID);
-            //You were explicitly setting the engine here. You should add that in.
-            this.tts.speak(textToSpeak, tts.QUEUE_ADD, params, UTTERANCE_ID);
+            try{
+                File file = File.createTempFile("tempSoundFile", ".wav");
+                file.setWritable(true, false);
+                file.setReadable(true, false);
+                file.deleteOnExit();
+                utterance_ID = file.getAbsolutePath();
+                //pre lolipop devices: https://stackoverflow.com/questions/34562771/how-to-save-audio-file-from-speech-synthesizer-in-android-android-speech-tts
+                params.putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, utterance_ID);
+                //You were explicitly setting the engine here. You should add that in.
+                this.tts.synthesizeToFile(textToSpeak, params, file, utterance_ID);
+            }catch (FileNotFoundException e){
+                Log.e(TAG, "File not found!!!", e);
+            }catch (IOException e){
+                Log.e(TAG, "Error creating temp file", e);
+            }
         }
 
 
@@ -681,57 +649,6 @@ public class MyAssistant implements Button.OnButtonEventListener, AudioTrack.OnP
         }
 
 
-        /**
-         * This can tell you the audioFormat!!!
-         * @param utteranceId
-         * @param sampleRateInHz
-         * @param audioFormat
-         * @param channelCount
-
-         * @see <a href="https://developer.android.com/reference/android/media/AudioFormat#CHANNEL_OUT_MONO">
-         *     the AudioFormat docs. "The canonical channel index masks by channel count are given by
-         *     the formula (1 << channelCount) - 1."</a>
-\         */
-        @Override
-        public void onBeginSynthesis(String utteranceId, int sampleRateInHz, int audioFormat, int channelCount) {
-            super.onBeginSynthesis(utteranceId, sampleRateInHz, audioFormat, channelCount);
-
-            int canonicalChannelIndex = (1 << channelCount) - 1;
-            afBuilder.setEncoding(audioFormat)
-                    .setChannelMask(canonicalChannelIndex)//for example AudioFormat.CHANNEL_IN_MONO
-                    .setSampleRate(sampleRateInHz);
-
-            //todo: you might need to specify the TTS engine so you can pass the encoding when you synthesize the file
-            //https://developer.android.com/reference/android/speech/tts/TextToSpeech#TextToSpeech(android.content.Context,%20android.speech.tts.TextToSpeech.OnInitListener,%20java.lang.String)
-
-            at = new MyAudioTrack.Builder()
-
-                    .setAudioFormat(this.afBuilder.build())
-                    .setBufferSizeInBytes(mOutputBufferSize)
-                    .setTransferMode(AudioTrack.MODE_STATIC)
-                    .build();
-
-            at.setPreferredDevice(MyAssistant.this.mAudioOutputDevice);
-        }
-
-        /**
-         * Simply logs the fact that audio is available to be spoken
-         *
-         * @param utteranceId the ID of the audio to be spoken
-         * @param audio the byte array of the audio.
-         *        todo: you might be able to play this audio directly with AudioTrack
-         * @see UtteranceProgressListener#onAudioAvailable(String, byte[])
-         * @see this#speak(String)
-         */
-        @Override
-        public void onAudioAvailable(String utteranceId, byte[] audio){
-            super.onAudioAvailable(utteranceId, audio);
-            Log.d(TAG, "Text to speech engine audio available");
-            Log.i(TAG, "Audio play state " + mAudioTrack.getPlayState());
-            int status = at.write(audio, 0,  audio.length
-                    , AudioTrack.WRITE_NON_BLOCKING);
-            Log.v(TAG, "status: " + status + " data: "+ Arrays.toString(audio));
-        }
 
 
         /**
@@ -750,7 +667,8 @@ public class MyAssistant implements Button.OnButtonEventListener, AudioTrack.OnP
         @Override
         public void onDone(String utteranceId) {
             Log.i(TAG, "utterance done!");
-            mAssistantHandler.post(runAt);
+            FilePlayer fp = new FilePlayer(utteranceId, attributes, mAudioOutputDevice);
+            fp.playWavToHandler(mAssistantHandler);
         }
 
         /**
