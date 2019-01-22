@@ -171,10 +171,13 @@ public class FilePlayer {
      * @return the sample rate
      * @see <a href="https://developer.android.com/reference/android/media/AudioFormat">
      *     the AudioFormat docs for calculating this int</a>
+     *
+     *     todo: fix this... Mono's numChannels will be 1, but android is expecting 4
      */
     private int getChannel(){
         byte[] mBytes = {this.header[22], this.header[23], 0, 0};
         int numChannels = byteArrayToLeInt(mBytes);
+        Log.i(TAG, "Number of channels is: " + numChannels);
         return (1 << numChannels) -1;
     }
 
@@ -211,14 +214,16 @@ public class FilePlayer {
      * @return
      */
     private int getEncoding(){
-        byte [] mBytes = {header[20], header[21]};
+        byte [] mBytes = {header[20], header[21], 0, 0};
         int format = byteArrayToLeInt(mBytes);//the AudioFormat bytes
         // format type. 1-PCM, 3- IEEE float, 6 - 8bit A law, 7 - 8bit mu law
         switch (format){
             case 1:
                 //1 is PCM, other values mean compression
+                Log.d(TAG, "File is PCM encoded");
                 return bytesPerSample() == 8? AudioFormat.ENCODING_PCM_8BIT : AudioFormat.ENCODING_PCM_16BIT;
             case 3:
+                Log.d(TAG, "File is encoding is PCM_FLOAT");
                 return AudioFormat.ENCODING_PCM_FLOAT;
             case 6:
                 Log.e(TAG, "file uses 8bit A law, but unsure how to translate that to an AudioFormat");
