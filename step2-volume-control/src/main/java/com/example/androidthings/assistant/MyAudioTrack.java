@@ -3,14 +3,21 @@ package com.example.androidthings.assistant;
 import android.media.AudioAttributes;
 import android.media.AudioFormat;
 import android.media.AudioTrack;
+import android.os.Handler;
 import android.provider.MediaStore;
 import android.util.Log;
 
 import com.google.android.things.contrib.driver.voicehat.Max98357A;
 import com.google.android.things.contrib.driver.voicehat.VoiceHat;
+import com.google.common.primitives.Ints;
 
+import java.io.DataInputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 
 import static android.content.ContentValues.TAG;
 
@@ -24,6 +31,7 @@ public class MyAudioTrack extends AudioTrack {
     private static Max98357A mDac;
     private boolean safeToStop = false;
     private boolean stopWhenDone = false;
+    private int bytesPerFrame;
 
     private AudioTrack.OnPlaybackPositionUpdateListener listener = new OnPlaybackPositionUpdateListener (){
         @Override
@@ -42,6 +50,8 @@ public class MyAudioTrack extends AudioTrack {
 
         }
     };
+
+
 
     /**
      * This initalizes the Dac if it's necessary, then calls the super constructor.
@@ -132,13 +142,13 @@ public class MyAudioTrack extends AudioTrack {
             audioTrack.getBufferSizeInFrames() * bytesPerFrame(audioTrack.getAudioFormat()),
             MODE_STREAM
         );
-        if( Math.abs(audioTrack.getBufferSizeInFrames() - getBufferSizeInFrames()) > 10){
+        if( Math.abs(audioTrack.getBufferSizeInFrames() - getBufferSizeInFrames()) > 100){
             ArithmeticException badBitDepth =
                     new ArithmeticException("The code is wrong. You're misunderstanding bit depth.");
-            Log.wtf(TAG, "Your code is just wrong!!!", badBitDepth);
+            Log.wtf(TAG, "Your code is just wrong!!! The audio track's " +
+                    "buffer size in frames is: " + audioTrack.getBufferSizeInFrames() +
+                    " my class's buffer size in frames is: " + getBufferSizeInFrames(), badBitDepth);
         }
-
-
     }
 
     /**
@@ -174,6 +184,8 @@ public class MyAudioTrack extends AudioTrack {
         }
 
     }
+
+
 
     /**
      * Gets the number of bytes in this
