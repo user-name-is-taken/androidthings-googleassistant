@@ -404,6 +404,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
         mOutputBufferSize = AudioTrack.getMinBufferSize(AUDIO_FORMAT_OUT_MONO.getSampleRate(),
                 AUDIO_FORMAT_OUT_MONO.getChannelMask(),
                 AUDIO_FORMAT_OUT_MONO.getEncoding());
+        //todo move the initialization of mAudioTrack inside the runnable
         mAudioTrack = new MyAudioTrack.Builder()
                 .setAudioFormat(AUDIO_FORMAT_OUT_MONO)
                 .setBufferSizeInBytes(mOutputBufferSize)
