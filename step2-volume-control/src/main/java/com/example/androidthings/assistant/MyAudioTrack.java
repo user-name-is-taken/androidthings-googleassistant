@@ -142,7 +142,7 @@ public class MyAudioTrack extends AudioTrack {
             audioTrack.getBufferSizeInFrames() * bytesPerFrame(audioTrack.getAudioFormat()),
             MODE_STREAM
         );
-        if( Math.abs(audioTrack.getBufferSizeInFrames() - getBufferSizeInFrames()) > 100){
+        if( Math.abs(audioTrack.getBufferSizeInFrames() - getBufferSizeInFrames()) > 10){
             ArithmeticException badBitDepth =
                     new ArithmeticException("The code is wrong. You're misunderstanding bit depth.");
             Log.wtf(TAG, "Your code is just wrong!!! The audio track's " +

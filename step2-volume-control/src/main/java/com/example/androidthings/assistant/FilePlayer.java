@@ -127,6 +127,7 @@ public class FilePlayer {
         while((i = dis.read(s, 0, this.bufferSize)) > -1){
             int status = this.at.write(s, 0,  i, AudioTrack.WRITE_BLOCKING);
             Log.v(TAG, "status: " + status + " data: "+ Arrays.toString(s));
+            Log.v(TAG, "Status: " + status + " expected data amount: " + (i - 0));
         }
         Log.i(TAG, "done playing file!");
         this.at.stop();
