@@ -166,19 +166,49 @@ public class FilePlayer {
     }
 
     /**
-     * calculates the channel mask from the number of channels given in the header
+     * calculates the channel position mask from the number of channels given in the header
      *
      * @return the sample rate
      * @see <a href="https://developer.android.com/reference/android/media/AudioFormat">
-     *     the AudioFormat docs for calculating this int</a>
+     *     the AudioFormat docs</a>
      *
-     *     todo: fix this... Mono's numChannels will be 1, but android is expecting 4
+     *  see the channel position masks
+     *
+     * channel count	channel position mask
+     * 1                CHANNEL_OUT_MONO
+     * 2        	    CHANNEL_OUT_STEREO
+     * 3        	    CHANNEL_OUT_STEREO | CHANNEL_OUT_FRONT_CENTER
+     * 4        	    CHANNEL_OUT_QUAD
+     * 5        	    CHANNEL_OUT_QUAD | CHANNEL_OUT_FRONT_CENTER
+     * 6        	    CHANNEL_OUT_5POINT1
+     * 7    	        CHANNEL_OUT_5POINT1 | CHANNEL_OUT_BACK_CENTER
+     * 8        	    CHANNEL_OUT_7POINT1_SURROUND
      */
     private int getChannel(){
         byte[] mBytes = {this.header[22], this.header[23], 0, 0};
         int numChannels = byteArrayToLeInt(mBytes);
         Log.i(TAG, "Number of channels is: " + numChannels);
-        return (1 << numChannels) -1;
+        switch (numChannels){
+            case(1):
+                return AudioFormat.CHANNEL_OUT_MONO;
+            case(2):
+                return AudioFormat.CHANNEL_OUT_STEREO;
+            case(3):
+                return AudioFormat.CHANNEL_OUT_STEREO;
+            case(4):
+                return AudioFormat.CHANNEL_OUT_QUAD;
+            case(5):
+                return AudioFormat.CHANNEL_OUT_QUAD;
+            case(6):
+                return AudioFormat.CHANNEL_OUT_5POINT1;
+            case(7):
+                return AudioFormat.CHANNEL_OUT_BACK_CENTER;
+            case(8):
+                return AudioFormat.CHANNEL_OUT_7POINT1_SURROUND;
+            default:
+                throw new InvalidParameterException("The wav file dictates an audio format that's" +
+                        " not in android's AudioFormat Channel position masks docs.");
+        }
     }
 
     /**
