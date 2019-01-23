@@ -216,7 +216,8 @@ public class MyAssistant implements Button.OnButtonEventListener {
                         //write is where audio to be played is determined.
                     }
                     mAssistantResponses.clear();
-                    mAudioTrack.stop();
+                    //mAudioTrack.stop();
+                    //You don't need this stop because it automatically stops when not getting more data
 
 
                     Log.i(TAG, "assistant response finished");

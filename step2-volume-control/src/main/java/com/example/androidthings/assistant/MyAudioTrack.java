@@ -31,7 +31,6 @@ public class MyAudioTrack extends AudioTrack {
     private static Max98357A mDac;
     private boolean safeToStop = false;
     private boolean stopWhenDone = false;
-    private int bytesPerFrame;
 
     private AudioTrack.OnPlaybackPositionUpdateListener listener = new OnPlaybackPositionUpdateListener (){
         @Override
@@ -39,7 +38,8 @@ public class MyAudioTrack extends AudioTrack {
             Log.i(TAG, "MyAudioTrack has reached the marker");
             safeToStop = true;
             if(stopWhenDone) {
-                stop();
+                //stop();
+                release();//release calls stop, so you don't need to call stop here.
                 Log.i(TAG, "Text to speech synthesis done");
             }
 
@@ -47,6 +47,7 @@ public class MyAudioTrack extends AudioTrack {
         @Override
         public void onPeriodicNotification(AudioTrack audioTrack) {
             Log.d(TAG, "Playback head position: " + getPlaybackHeadPosition());
+            //you're still trying to send data to this after the release
 
         }
     };

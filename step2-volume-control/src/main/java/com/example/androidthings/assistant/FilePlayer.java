@@ -110,7 +110,6 @@ public class FilePlayer {
             dis.close();
             fin.close();
             this.atFile.delete();
-            //this.at.release();
             this.at = null;
         } catch (FileNotFoundException e) {
             // TODO
@@ -132,8 +131,7 @@ public class FilePlayer {
             Log.v(TAG, "Status: " + status + " expected data amount: " + (i - 0));
         }
         Log.i(TAG, "done playing file!");
-        this.at.stop();
-        //at.release();
+        //this.at.stop();
     }
 
     /**
