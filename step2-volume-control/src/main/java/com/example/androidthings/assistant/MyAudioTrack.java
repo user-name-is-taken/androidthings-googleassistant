@@ -314,8 +314,7 @@ public class MyAudioTrack extends AudioTrack {
      */
     @Override
     public int write(byte[] audioData, int offsetInBytes, int sizeInBytes) {
-        int numbBytes = sizeInBytes - offsetInBytes;
-        advanceNotificationMarker(numbBytes/bytesPerFrame());
+        advanceNotificationMarker(sizeInBytes/bytesPerFrame());
         safeToStop = false;
         return super.write(audioData, offsetInBytes, sizeInBytes);
     }
@@ -330,18 +329,16 @@ public class MyAudioTrack extends AudioTrack {
 
     @Override
     public int write(short[] audioData, int offsetInShorts, int sizeInShorts) {
-        int numbShorts = sizeInShorts - offsetInShorts;
-        Log.d(TAG, "Writing " + numbShorts + " shorts of audio data");
-        advanceNotificationMarker((int) (numbShorts / shortsPerFrame()));
+        Log.d(TAG, "Writing " + sizeInShorts + " shorts of audio data");
+        advanceNotificationMarker((int) (sizeInShorts / shortsPerFrame()));
         safeToStop = false;
         return super.write(audioData, offsetInShorts, sizeInShorts);
     }
 
     @Override
     public int write(byte[] audioData, int offsetInBytes, int sizeInBytes, int writeMode) {
-        int numbBytes = sizeInBytes - offsetInBytes;
-        Log.d(TAG, "Writing " + numbBytes + " of audio data.");
-        advanceNotificationMarker( ( numbBytes / bytesPerFrame() ) );
+        Log.d(TAG, "Writing " + sizeInBytes + " of audio data.");
+        advanceNotificationMarker( ( sizeInBytes / bytesPerFrame() ) );
         safeToStop = false;
         return super.write(audioData, offsetInBytes, sizeInBytes, writeMode);
     }
@@ -356,9 +353,8 @@ public class MyAudioTrack extends AudioTrack {
 
     @Override
     public int write(float[] audioData, int offsetInFloats, int sizeInFloats, int writeMode) {
-        int numbFloats = sizeInFloats - offsetInFloats;
-        Log.d(TAG, "Writing " + numbFloats + " bytes of audio data");
-        advanceNotificationMarker( (int) (numbFloats / floatsPerFrame()) );
+        Log.d(TAG, "Writing " + sizeInFloats + " bytes of audio data");
+        advanceNotificationMarker( (int) (sizeInFloats / floatsPerFrame()) );
         safeToStop = false;
         return super.write(audioData, offsetInFloats, sizeInFloats, writeMode);
     }
