@@ -110,6 +110,8 @@ public class FilePlayer {
             dis.close();
             fin.close();
             this.atFile.delete();
+            //this.at.release();
+            this.at = null;
         } catch (FileNotFoundException e) {
             // TODO
             e.printStackTrace();
