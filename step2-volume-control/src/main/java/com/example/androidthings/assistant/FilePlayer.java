@@ -272,7 +272,7 @@ public class FilePlayer {
      * @return
      */
     private int bytesPerSample(){
-        byte[] mBytes = {header[20], header[21], 0, 0};
+        byte[] mBytes = {header[34], header[35], 0, 0};
         int blockAlign = byteArrayToLeInt(mBytes);
         Log.i(TAG, "Bytes per sample is: " + blockAlign);
         return blockAlign;
