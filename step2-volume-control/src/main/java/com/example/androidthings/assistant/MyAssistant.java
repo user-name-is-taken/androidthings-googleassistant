@@ -188,36 +188,48 @@ public class MyAssistant implements Button.OnButtonEventListener {
                     Log.e(TAG, "converse error:", t);
                 }
 
+                private Runnable respond = new Runnable() {
+                    @Override
+                    public void run() {
+                        if(mAudioTrack == null) {
+                            mAudioTrack = new MyAudioTrack.Builder()
+                                    .setAudioFormat(AUDIO_FORMAT_OUT_MONO)
+                                    .setBufferSizeInBytes(mOutputBufferSize)
+                                    .setTransferMode(AudioTrack.MODE_STREAM)
+                                    .build();
+                            // setting the volume every time because I'm creating mAudioTrack every time
+                            float vol = AudioTrack.getMaxVolume() * mVolumePercentage / 100.0f;
+                            mAudioTrack.setVolume(vol);
+                            //need to maintain volume across these objects?
+                        }
+
+                        if (mAudioOutputDevice != null) {
+                            mAudioTrack.setPreferredDevice(mAudioOutputDevice);
+                        }
+
+                        //todo: post this audio to the handler
+                        mAudioTrack.play();
+
+                        for (ByteBuffer audioData : mAssistantResponses) {
+                            final ByteBuffer buf = audioData;
+                            Log.d(TAG, "Playing a bit of audio");
+                            mAudioTrack.write(buf, buf.remaining(),
+                                    AudioTrack.WRITE_BLOCKING);
+
+                            //todo: according to this https://developer.android.com/reference/android/media/AudioTrack#play()
+                            //write is where audio to be played is determined.
+                        }
+                        mAssistantResponses.clear();
+                        mAudioTrack.release();
+                        //You don't need this stop because it automatically stops when not getting more data
+                    }
+                };
+
                 @Override
                 public void onCompleted() {
-                    if(mAudioTrack == null) {
-                        mAudioTrack = new MyAudioTrack.Builder()
-                                .setAudioFormat(AUDIO_FORMAT_OUT_MONO)
-                                .setBufferSizeInBytes(mOutputBufferSize)
-                                .setTransferMode(AudioTrack.MODE_STREAM)
-                                .build();
-                    }
-                    //todo check if you need to set volume like this
-                    float vol = AudioTrack.getMaxVolume() * mVolumePercentage / 100.0f;
-                    mAudioTrack.setVolume(vol);
-                    //need to maintain volume across these objects?
-                    if (mAudioOutputDevice != null) {
-                        mAudioTrack.setPreferredDevice(mAudioOutputDevice);
-                    }
-                    mAudioTrack.play();
 
-                    for (ByteBuffer audioData : mAssistantResponses) {
-                        final ByteBuffer buf = audioData;
-                        Log.d(TAG, "Playing a bit of audio");
-                        mAudioTrack.write(buf, buf.remaining(),
-                                AudioTrack.WRITE_BLOCKING);
 
-                        //todo: according to this https://developer.android.com/reference/android/media/AudioTrack#play()
-                        //write is where audio to be played is determined.
-                    }
-                    mAssistantResponses.clear();
-                    //mAudioTrack.stop();
-                    //You don't need this stop because it automatically stops when not getting more data
+                    mAssistantHandler.post(this.respond);
 
 
                     Log.i(TAG, "assistant response finished");
@@ -327,6 +339,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
             }
             mAudioRecord.stop();
             mAudioTrack.play();//todo: is this a better text to speech?
+            //todo: why the heck did they put this here????
         }
     };
 
@@ -405,11 +418,13 @@ public class MyAssistant implements Button.OnButtonEventListener {
                 AUDIO_FORMAT_OUT_MONO.getChannelMask(),
                 AUDIO_FORMAT_OUT_MONO.getEncoding());
         //todo move the initialization of mAudioTrack inside the runnable
+
         mAudioTrack = new MyAudioTrack.Builder()
                 .setAudioFormat(AUDIO_FORMAT_OUT_MONO)
                 .setBufferSizeInBytes(mOutputBufferSize)
                 .build();
         mAudioTrack.play();
+
         int inputBufferSize = AudioRecord.getMinBufferSize(AUDIO_FORMAT_STEREO.getSampleRate(),
                 AUDIO_FORMAT_STEREO.getChannelMask(),
                 AUDIO_FORMAT_STEREO.getEncoding());
@@ -510,7 +525,6 @@ public class MyAssistant implements Button.OnButtonEventListener {
      */
 
     /**
-     * todo: make sure these voices aren't playing when assistant responses are playing
      *
      * @see <a href="https://stackoverflow.com/questions/54207935/what-paramaters-does-androids-audiotrack-need-to-play-the-output-of-texttospeec?noredirect=1#comment95270962_54207935">
      *     my stack overflow post about this</a>
@@ -657,7 +671,6 @@ public class MyAssistant implements Button.OnButtonEventListener {
          * Is called when synthesizeToFile finishes. Adds a runSynthesizedFile
          * runnable to the handler's queue so the file can be spoken.
          *
-         * todo: check mAudioTrack's queue before stopping, flushing...
          * use this methodhttps://developer.android.com/reference/android/media/AudioTrack.html#setPlaybackPositionUpdateListener(android.media.AudioTrack.OnPlaybackPositionUpdateListener,%20android.os.Handler)
          * Also use setNotificationMarkerPosiiton
          *

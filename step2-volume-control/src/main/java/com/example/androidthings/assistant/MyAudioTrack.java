@@ -29,7 +29,7 @@ import static android.content.ContentValues.TAG;
  */
 public class MyAudioTrack extends AudioTrack {
     private static Max98357A mDac;
-    private boolean safeToStop = false;
+    private boolean safeToStop = true;
     private boolean stopWhenDone = false;
 
     private AudioTrack.OnPlaybackPositionUpdateListener listener = new OnPlaybackPositionUpdateListener (){
@@ -237,6 +237,7 @@ public class MyAudioTrack extends AudioTrack {
     public void play() throws IllegalStateException {
         super.play();
         stopWhenDone = false;
+        safeToStop = false;
         if (mDac != null) {
             Log.i(TAG, "enabling the dac");
             try {
@@ -286,12 +287,15 @@ public class MyAudioTrack extends AudioTrack {
      * @throws IllegalStateException
      */
     private void forceStop() throws IllegalStateException{
+        Log.i(TAG, "MyAudioTrack trying to forceStop()");
         super.flush();
-        super.reloadStaticData();
+        //super.reloadStaticData();
         super.stop();
         if (mDac != null) {
             try {
+                Log.i(TAG, "MyAudioTrack trying to kill dac");
                 mDac.setSdMode(Max98357A.SD_MODE_SHUTDOWN);
+                Log.i(TAG, "MyAudioTrack successfully shut the Dac down");
             } catch (IOException e) {
                 Log.e(TAG, "unable to modify dac trigger", e);
             }
