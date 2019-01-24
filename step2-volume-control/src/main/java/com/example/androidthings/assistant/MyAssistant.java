@@ -220,15 +220,13 @@ public class MyAssistant implements Button.OnButtonEventListener {
                             //write is where audio to be played is determined.
                         }
                         mAssistantResponses.clear();
-                        mAudioTrack.release();
+                        mAudioTrack.stop();
                         //You don't need this stop because it automatically stops when not getting more data
                     }
                 };
 
                 @Override
                 public void onCompleted() {
-
-
                     mAssistantHandler.post(this.respond);
 
 
