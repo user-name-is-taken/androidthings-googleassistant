@@ -131,7 +131,7 @@ public class FilePlayer {
             Log.v(TAG, "Status: " + status + " expected data amount: " + (i - 0));
         }
         Log.i(TAG, "done playing file!");
-        //this.at.stop();
+        this.at.stop();
     }
 
     /**
