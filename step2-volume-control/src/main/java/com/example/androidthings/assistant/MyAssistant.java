@@ -22,7 +22,6 @@ import com.example.androidthings.assistant.shared.BoardDefaults;
 import com.example.androidthings.assistant.shared.Credentials;
 import com.example.androidthings.assistant.shared.MyDevice;
 import com.google.android.things.contrib.driver.button.Button;
-import com.google.android.things.contrib.driver.voicehat.Max98357A;
 import com.google.android.things.contrib.driver.voicehat.VoiceHat;
 import com.google.android.things.pio.Gpio;
 import com.google.android.things.pio.PeripheralManager;
@@ -35,24 +34,17 @@ import com.google.assistant.embedded.v1alpha2.DeviceConfig;
 import com.google.assistant.embedded.v1alpha2.DialogStateIn;
 import com.google.assistant.embedded.v1alpha2.EmbeddedAssistantGrpc;
 import com.google.assistant.embedded.v1alpha2.SpeechRecognitionResult;
-import com.google.common.primitives.Ints;
 import com.google.protobuf.ByteString;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.io.DataInputStream;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Calendar;
-import java.util.LinkedList;
 import java.util.Locale;
 
 import io.grpc.ManagedChannel;
@@ -64,7 +56,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
     private Context context;
     public static ListView assistantRequestsListView;
 
-    private static float volPct;
+    public static float volFloat;
 
     private static final String TAG = AssistantActivity.class.getSimpleName();
 
@@ -137,8 +129,8 @@ public class MyAssistant implements Button.OnButtonEventListener {
                             mVolumePercentage = volume;
                             Log.i(TAG, "assistant volume changed: " + mVolumePercentage);
                             float vol = AudioTrack.getMaxVolume() * mVolumePercentage / 100.0f;
-                            mAudioTrack.setVolume(vol);
-                            MyAssistant.volPct = vol;
+                            MyAssistant.volFloat = vol;
+
                             myTTS.speak("volume set");
 
                         }
@@ -188,20 +180,17 @@ public class MyAssistant implements Button.OnButtonEventListener {
                     Log.e(TAG, "converse error:", t);
                 }
 
+                /**
+                 * runs the response audio
+                 */
                 private Runnable respond = new Runnable() {
                     @Override
                     public void run() {
-                        if(mAudioTrack == null) {
-                            mAudioTrack = new MyAudioTrack.Builder()
-                                    .setAudioFormat(AUDIO_FORMAT_OUT_MONO)
-                                    .setBufferSizeInBytes(mOutputBufferSize)
-                                    .setTransferMode(AudioTrack.MODE_STREAM)
-                                    .build();
-                            // setting the volume every time because I'm creating mAudioTrack every time
-                            float vol = AudioTrack.getMaxVolume() * mVolumePercentage / 100.0f;
-                            mAudioTrack.setVolume(vol);
-                            //need to maintain volume across these objects?
-                        }
+                        mAudioTrack = MyAssistant.this.matB.build();
+                        // setting the volume every time because I'm creating mAudioTrack every time
+
+                        mAudioTrack.setVolume(volFloat);
+                        //need to maintain volume across these objects?
 
                         if (mAudioOutputDevice != null) {
                             mAudioTrack.setPreferredDevice(mAudioOutputDevice);
@@ -221,6 +210,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
                         }
                         mAssistantResponses.clear();
                         mAudioTrack.stop();
+                        mAudioTrack = null;
                         //You don't need this stop because it automatically stops when not getting more data
                     }
                 };
@@ -250,7 +240,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
     }
 
     // Audio playback and recording objects.
-    private AudioTrack mAudioTrack;
+    private MyAudioTrack mAudioTrack;
     private AudioRecord mAudioRecord;
 
     // Audio routing configuration: use default routing.
@@ -336,8 +326,6 @@ public class MyAssistant implements Button.OnButtonEventListener {
                 mAssistantRequestObserver = null;
             }
             mAudioRecord.stop();
-            mAudioTrack.play();//todo: is this a better text to speech?
-            //todo: why the heck did they put this here????
         }
     };
 
@@ -348,6 +336,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
 
     private Handler mMainHandler;
     public CustomTTS myTTS;
+    private MyAudioTrack.Builder matB;
 
     public MyAssistant(Activity context){
         this.context = context;
@@ -364,6 +353,50 @@ public class MyAssistant implements Button.OnButtonEventListener {
 
         assistantRequestsListView.setAdapter(mAssistantRequestsAdapter);
 
+        setupAudioOut();
+
+        setupButton();
+
+        AudioManager manager = (AudioManager)context.getSystemService(Context.AUDIO_SERVICE);
+        int maxVolume = manager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+        Log.i(TAG, "setting volume to: " + maxVolume);
+        manager.setStreamVolume(AudioManager.STREAM_MUSIC, maxVolume, 0);
+        mOutputBufferSize = AudioTrack.getMinBufferSize(AUDIO_FORMAT_OUT_MONO.getSampleRate(),
+                AUDIO_FORMAT_OUT_MONO.getChannelMask(),
+                AUDIO_FORMAT_OUT_MONO.getEncoding());
+        //todo move the initialization of mAudioTrack inside the runnable
+
+        this.matB = new MyAudioTrack.Builder();
+
+        this.matB.setAudioFormat(AUDIO_FORMAT_OUT_MONO).setBufferSizeInBytes(mOutputBufferSize)
+                .setTransferMode(AudioTrack.MODE_STREAM);
+
+        int inputBufferSize = AudioRecord.getMinBufferSize(AUDIO_FORMAT_STEREO.getSampleRate(),
+                AUDIO_FORMAT_STEREO.getChannelMask(),
+                AUDIO_FORMAT_STEREO.getEncoding());
+        mAudioRecord = new AudioRecord.Builder()
+                .setAudioSource(MediaRecorder.AudioSource.VOICE_RECOGNITION)
+                .setAudioFormat(AUDIO_FORMAT_IN_MONO)
+                .setBufferSizeInBytes(inputBufferSize)
+                .build();
+
+        ManagedChannel channel = ManagedChannelBuilder.forTarget(ASSISTANT_ENDPOINT).build();
+        try {
+            mAssistantService = EmbeddedAssistantGrpc.newStub(channel)
+                    .withCallCredentials(MoreCallCredentials.from(
+                            Credentials.fromResource(context, R.raw.credentials)
+                    ));
+        } catch (IOException|JSONException e) {
+            Log.e(TAG, "error creating assistant service:", e);
+        }
+
+        myTTS = new CustomTTS();
+    }
+
+    /**
+     * sets up the audio output device (see here to change from mdac to something else)
+     */
+    private void setupAudioOut(){
         // Use I2S with the Voice HAT.
         if (USE_VOICEHAT_DAC) {
             Log.d(TAG, "enumerating devices");
@@ -386,8 +419,15 @@ public class MyAssistant implements Button.OnButtonEventListener {
                 Log.e(TAG, "failed to found preferred audio output device, using default");
             }
         }
+    }
 
-
+    /**
+     * sets up the button for the voice hat.
+     *
+     * @throws IOException which is caught and logged, but unhandled for now.
+     *   message is: "error configuring peripherals:"
+     */
+    private void setupButton(){
         try {
             if (USE_VOICEHAT_DAC) {
                 mButton = VoiceHat.openButton();
@@ -405,44 +445,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
             mLed.setActiveType(Gpio.ACTIVE_HIGH);
         } catch (IOException e) {
             Log.e(TAG, "error configuring peripherals:", e);
-            return;
         }
-
-        AudioManager manager = (AudioManager)context.getSystemService(Context.AUDIO_SERVICE);
-        int maxVolume = manager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
-        Log.i(TAG, "setting volume to: " + maxVolume);
-        manager.setStreamVolume(AudioManager.STREAM_MUSIC, maxVolume, 0);
-        mOutputBufferSize = AudioTrack.getMinBufferSize(AUDIO_FORMAT_OUT_MONO.getSampleRate(),
-                AUDIO_FORMAT_OUT_MONO.getChannelMask(),
-                AUDIO_FORMAT_OUT_MONO.getEncoding());
-        //todo move the initialization of mAudioTrack inside the runnable
-
-        mAudioTrack = new MyAudioTrack.Builder()
-                .setAudioFormat(AUDIO_FORMAT_OUT_MONO)
-                .setBufferSizeInBytes(mOutputBufferSize)
-                .build();
-        mAudioTrack.play();
-
-        int inputBufferSize = AudioRecord.getMinBufferSize(AUDIO_FORMAT_STEREO.getSampleRate(),
-                AUDIO_FORMAT_STEREO.getChannelMask(),
-                AUDIO_FORMAT_STEREO.getEncoding());
-        mAudioRecord = new AudioRecord.Builder()
-                .setAudioSource(MediaRecorder.AudioSource.VOICE_RECOGNITION)
-                .setAudioFormat(AUDIO_FORMAT_IN_MONO)
-                .setBufferSizeInBytes(inputBufferSize)
-                .build();
-
-        ManagedChannel channel = ManagedChannelBuilder.forTarget(ASSISTANT_ENDPOINT).build();
-        try {
-            mAssistantService = EmbeddedAssistantGrpc.newStub(channel)
-                    .withCallCredentials(MoreCallCredentials.from(
-                            Credentials.fromResource(context, R.raw.credentials)
-                    ));
-        } catch (IOException|JSONException e) {
-            Log.e(TAG, "error creating assistant service:", e);
-        }
-
-        myTTS = new CustomTTS();
     }
 
     private AudioDeviceInfo findAudioDevice(int deviceFlag, int deviceType) {
@@ -532,20 +535,9 @@ public class MyAssistant implements Button.OnButtonEventListener {
 
         private String utterance_ID;
 
-        //private Resample resample;
-        private AudioTrack at;
-
         private AudioAttributes attributes;
 
-
-
-        private AudioFormat.Builder afBuilder = new AudioFormat.Builder();
-
-
-
-
         private TextToSpeech tts;//all the callbacks are linked to this
-
 
         /**
          * initializes the class so it can use text to speech
@@ -563,8 +555,6 @@ public class MyAssistant implements Button.OnButtonEventListener {
             resample.create(TTS_SAMPLE_RATE, SAMPLE_RATE, minBufferSize, 1);
         */
 
-
-            this.afBuilder = new AudioFormat.Builder();
 
             this.tts = new TextToSpeech(MyAssistant.this.context, this, TTS_ENGINE);
         }//end constructor
@@ -590,6 +580,8 @@ public class MyAssistant implements Button.OnButtonEventListener {
 
         /**
          * This makes speaking much easier.
+         * calls the TextToSpeech method synthesizeToFile, which is played with FilePlayer in
+         * onDone
          * @param textToSpeak
          */
         public void speak(String textToSpeak){

@@ -283,12 +283,14 @@ public class FilePlayer {
      * read AudioTrack parameters from header and use them
      */
     private void setupAudioTrack(){
+        int mOutputBufferSize = AudioTrack.getMinBufferSize(getSampleRate(),
+                getChannel(),
+                getEncoding());
         setupAudioFormat();
-
         MyAudioTrack.Builder ab = new MyAudioTrack.Builder();
-        ab.setAudioAttributes(this.attributes);
-        ab.setAudioFormat(this.af);
+        ab.setAudioAttributes(this.attributes).setAudioFormat(this.af).setBufferSizeInBytes(mOutputBufferSize);
         this.at = ab.build();
+        at.setVolume(MyAssistant.volFloat);
         this.at.setPreferredDevice(this.device);
     }
 }

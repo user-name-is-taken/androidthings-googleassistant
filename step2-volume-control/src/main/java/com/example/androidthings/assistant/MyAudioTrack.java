@@ -38,8 +38,7 @@ public class MyAudioTrack extends AudioTrack {
             Log.i(TAG, "MyAudioTrack has reached the marker");
             safeToStop = true;
             if(stopWhenDone) {
-                stop();
-                //release();//release calls stop, so you don't need to call stop here.
+                release();//release calls stop, so you don't need to call stop here.
                 Log.i(TAG, "Text to speech synthesis done");
             }
 
@@ -85,7 +84,7 @@ public class MyAudioTrack extends AudioTrack {
         }else{
             Log.i(TAG, "Not using the Dac");
         }
-        setPositionNotificationPeriod(800);
+        setPositionNotificationPeriod(sampleRateInHz);//gets notified once per second
         setPlaybackPositionUpdateListener(this.listener);
     }
 
