@@ -131,7 +131,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
                             float vol = AudioTrack.getMaxVolume() * mVolumePercentage / 100.0f;
                             MyAssistant.volFloat = vol;
 
-                            myTTS.speak("volume set");
+                            myTTS.speak("volume set hello");
 
                         }
                         mConversationState = value.getDialogStateOut().getConversationState();
@@ -231,11 +231,28 @@ public class MyAssistant implements Button.OnButtonEventListener {
                 }
             };
 
+    /**
+     * see here
+     * note, in google ac
+     *
+     * @param command
+     * @param params
+     * @throws JSONException
+     * @throws IOException
+     * @see <a href="https://codelabs.developers.google.com/codelabs/androidthings-assistant/#6">
+     *     This code lab</a>
+     * @see <a href="//https://www.youtube.com/watch?v=rKf6CNJsaPM">
+     *     this youtube video</a>
+     * @see the actions.json in shared/res/raw/actions.json
+     */
     public void handleDeviceAction(String command, JSONObject params)
             throws JSONException, IOException {
+        Log.i(TAG, "Command name is: " + command);
         if (command.equals("action.devices.commands.OnOff")) {
             //mLed.setValue(params.getBoolean("on"));
             Log.i(TAG, "Turning device on!!!!");
+        }else if (command.equals("com.example.commands.EnableBluetooth")){
+            Log.i(TAG, "Enabling bluetooth");
         }
     }
 

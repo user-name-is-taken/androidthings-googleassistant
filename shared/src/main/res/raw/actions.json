@@ -1,0 +1,49 @@
+{
+  "manifest": {
+    "displayName": "Enable Bluetooth",
+    "invocationName": "Enable Bluetooth",
+    "category": "PRODUCTIVITY"
+  },
+  "actions": [
+    {
+      "name": "com.example.actions.EnableBluetooth",
+      "availability": {
+        "deviceClasses": [
+          {
+            "assistantSdkDevice": {}
+          }
+        ]
+      },
+      "intent": {
+        "name": "com.example.intents.EnableBluetooth",
+        "trigger": {
+          "queryPatterns": [
+            "Enable bluetooth",
+            "Turn on bluetooth",
+            "Start bluetooth",
+            "Make bluetooth discoverable"
+          ]
+        }
+      },
+      "fulfillment": {
+        "staticFulfillment": {
+          "templatedResponse": {
+            "items": [
+              {
+                "simpleResponse": {
+                  "textToSpeech": "Bluetooth is now discoverable for the next 500 seconds."
+                }
+              },
+              {
+                "deviceExecution": {
+                  "command": "com.example.commands.EnableBluetooth"
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+
+}
