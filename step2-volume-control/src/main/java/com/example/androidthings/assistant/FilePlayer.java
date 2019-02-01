@@ -121,6 +121,12 @@ public class FilePlayer {
     }
 
 
+    /**
+     * This actually plays the file. It's called in playWav. The rest of playWav sets things up.
+     *
+     * @throws IOException
+     * @see this#playWav()
+     */
     private void actuallyPlay() throws IOException{
         this.at.play();
         int i = 0;

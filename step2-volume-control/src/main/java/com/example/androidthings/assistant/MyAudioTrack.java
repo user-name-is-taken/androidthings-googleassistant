@@ -76,8 +76,8 @@ public class MyAudioTrack extends AudioTrack {
         if(MyAssistant.USE_VOICEHAT_DAC) {
             Log.i(TAG, "initializing DAC trigger");
             try {
-                this.mDac = VoiceHat.openDac();
-                this.mDac.setSdMode(Max98357A.SD_MODE_SHUTDOWN);
+                setmDac(VoiceHat.openDac());
+                getmDac().setSdMode(Max98357A.SD_MODE_SHUTDOWN);
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -228,6 +228,7 @@ public class MyAudioTrack extends AudioTrack {
     public static Max98357A getmDac() {
         return mDac;
     }
+
     public static void setmDac(Max98357A mDac) {
         MyAudioTrack.mDac = mDac;
     }
@@ -240,7 +241,7 @@ public class MyAudioTrack extends AudioTrack {
         if (mDac != null) {
             Log.i(TAG, "enabling the dac");
             try {
-                mDac.setSdMode(Max98357A.SD_MODE_LEFT);
+                getmDac().setSdMode(Max98357A.SD_MODE_LEFT);
             } catch (IOException e) {
                 Log.e(TAG, "unable to modify dac trigger", e);
             }
@@ -293,7 +294,7 @@ public class MyAudioTrack extends AudioTrack {
         if (mDac != null) {
             try {
                 Log.i(TAG, "MyAudioTrack trying to kill dac");
-                mDac.setSdMode(Max98357A.SD_MODE_SHUTDOWN);
+                getmDac().setSdMode(Max98357A.SD_MODE_SHUTDOWN);
                 Log.i(TAG, "MyAudioTrack successfully shut the Dac down");
             } catch (IOException e) {
                 Log.e(TAG, "unable to modify dac trigger", e);
