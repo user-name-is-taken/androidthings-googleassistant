@@ -31,6 +31,7 @@ public class MyAudioTrack extends AudioTrack {
     private static Max98357A mDac;
     private boolean safeToStop = true;
     private boolean stopWhenDone = false;
+    //todo add a static default volume variable here
 
     private AudioTrack.OnPlaybackPositionUpdateListener listener = new OnPlaybackPositionUpdateListener (){
         @Override
