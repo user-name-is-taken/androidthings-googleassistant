@@ -52,11 +52,14 @@ import io.grpc.ManagedChannelBuilder;
 import io.grpc.auth.MoreCallCredentials;
 import io.grpc.stub.StreamObserver;
 
+/**
+ * @see https://github.com/androidthings/sample-googleassistant
+ */
 public class MyAssistant implements Button.OnButtonEventListener {
     private Context context;
     public static ListView assistantRequestsListView;
 
-    public static float volFloat;
+    public static float volFloat = 1.0f;
 
     private static final String TAG = AssistantActivity.class.getSimpleName();
 
@@ -190,13 +193,11 @@ public class MyAssistant implements Button.OnButtonEventListener {
                         // setting the volume every time because I'm creating mAudioTrack every time
 
                         mAudioTrack.setVolume(volFloat);
-                        //need to maintain volume across these objects?
 
                         if (mAudioOutputDevice != null) {
                             mAudioTrack.setPreferredDevice(mAudioOutputDevice);
                         }
 
-                        //todo: post this audio to the handler
                         mAudioTrack.play();
 
                         for (ByteBuffer audioData : mAssistantResponses) {
@@ -204,14 +205,10 @@ public class MyAssistant implements Button.OnButtonEventListener {
                             Log.d(TAG, "Playing a bit of audio");
                             mAudioTrack.write(buf, buf.remaining(),
                                     AudioTrack.WRITE_BLOCKING);
-
-                            //todo: according to this https://developer.android.com/reference/android/media/AudioTrack#play()
-                            //write is where audio to be played is determined.
                         }
                         mAssistantResponses.clear();
                         mAudioTrack.stop();
-                        mAudioTrack = null;
-                        //You don't need this stop because it automatically stops when not getting more data
+                        mAudioTrack = null;//not sure if this is necessary
                     }
                 };
 
@@ -243,7 +240,7 @@ public class MyAssistant implements Button.OnButtonEventListener {
      *     This code lab</a>
      * @see <a href="//https://www.youtube.com/watch?v=rKf6CNJsaPM">
      *     this youtube video</a>
-     * @see the actions.json in shared/res/raw/actions.json
+     * @see res/raw/actions.json in shared/res/raw/actions.json for the com.example.commands.EnableBluetooth
      */
     public void handleDeviceAction(String command, JSONObject params)
             throws JSONException, IOException {
@@ -381,7 +378,6 @@ public class MyAssistant implements Button.OnButtonEventListener {
         mOutputBufferSize = AudioTrack.getMinBufferSize(AUDIO_FORMAT_OUT_MONO.getSampleRate(),
                 AUDIO_FORMAT_OUT_MONO.getChannelMask(),
                 AUDIO_FORMAT_OUT_MONO.getEncoding());
-        //todo move the initialization of mAudioTrack inside the runnable
 
         this.matB = new MyAudioTrack.Builder();
 
@@ -412,13 +408,13 @@ public class MyAssistant implements Button.OnButtonEventListener {
 
     /**
      * sets up the audio output device (see here to change from mdac to something else)
+     *
+     * @see  <a href="https://github.com/androidthings/sample-googleassistant"> the docs for changing the output channel</a>
      */
     private void setupAudioOut(){
         // Use I2S with the Voice HAT.
         if (USE_VOICEHAT_DAC) {
             Log.d(TAG, "enumerating devices");
-            //TODO change this back to TYPE_BUS for I2S
-            //https://github.com/androidthings/sample-googleassistant
             mAudioInputDevice = findAudioDevice(AudioManager.GET_DEVICES_INPUTS,
                     AudioDeviceInfo.TYPE_BUS);
             if (mAudioInputDevice == null) {
